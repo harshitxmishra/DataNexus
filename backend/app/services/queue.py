@@ -143,6 +143,8 @@ class ProcessingQueueService:
             es_available = es_provider.is_available()
             if es_available:
                 es_provider.init_index()
+                # Purge any prior chunks for this document (e.g. on re-processing) to prevent orphans
+                es_provider.delete_document_chunks(doc.id)
                 for chunk_obj in chunks_to_add:
                     vec = json.loads(chunk_obj.embedding) if chunk_obj.embedding else []
                     indexed = es_provider.index_chunk(chunk_obj, doc, vec)

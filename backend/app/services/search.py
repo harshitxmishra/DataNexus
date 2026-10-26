@@ -251,10 +251,10 @@ class ElasticsearchProvider(BaseSearchProvider):
             logger.error(f"Failed indexing chunk {chunk.id} in Elasticsearch: {e}")
             return False
 
-    def bulk_index_chunks(self, items: List[Tuple[DocumentChunk, Document, List[float]]]) -> Tuple[int, int]:
-        """Bulk index chunks with deterministic chunk IDs for performance."""
+    def bulk_index_chunks(self, items: List[Tuple[DocumentChunk, Document, List[float]]]) -> Tuple[int, int, List[str]]:
+        """Bulk index chunks with deterministic chunk IDs for performance. Returns (success_count, failed_count, failed_ids)."""
         if not self.is_available() or not items:
-            return 0, len(items)
+            return 0, len(items), [chunk.id for chunk, _, _ in items]
 
         self.init_index()
         actions = []
@@ -280,11 +280,17 @@ class ElasticsearchProvider(BaseSearchProvider):
 
         try:
             success, errors = helpers.bulk(self.client, actions, raise_on_error=False)
-            failed_count = len(errors) if isinstance(errors, list) else 0
-            return success, failed_count
+            failed_ids: List[str] = []
+            if isinstance(errors, list):
+                for err_entry in errors:
+                    if isinstance(err_entry, dict):
+                        for action_data in err_entry.values():
+                            if isinstance(action_data, dict) and "_id" in action_data:
+                                failed_ids.append(action_data["_id"])
+            return success, len(failed_ids), failed_ids
         except Exception as e:
             logger.error(f"Elasticsearch bulk indexing exception: {e}")
-            return 0, len(items)
+            return 0, len(items), [chunk.id for chunk, _, _ in items]
 
     def delete_chunk(self, chunk_id: str) -> bool:
         """Delete a single chunk by ID."""
@@ -446,10 +452,10 @@ class ElasticsearchProvider(BaseSearchProvider):
                 ))
             return results, "elasticsearch_hybrid_rrf"
 
-    def reconcile_index(self, db: Session) -> Dict[str, Any]:
+    def reconcile_index(self, db: Session, prune_orphans: bool = False) -> Dict[str, Any]:
         """
         Compare PostgreSQL/SQLite canonical records with Elasticsearch index.
-        Reports missing, stale, and orphaned chunks.
+        Reports missing, stale, and orphaned chunks. Optionally prunes orphans.
         """
         if not self.is_available():
             return {
@@ -459,7 +465,10 @@ class ElasticsearchProvider(BaseSearchProvider):
                 "missing_in_es": [],
                 "orphaned_in_es": [],
                 "missing_count": 0,
-                "orphaned_count": 0
+                "orphaned_count": 0,
+                "stale_in_es": [],
+                "stale_count": 0,
+                "pruned_orphans_count": 0
             }
 
         # 1. Fetch all canonical chunks and document versions from DB
@@ -500,6 +509,12 @@ class ElasticsearchProvider(BaseSearchProvider):
             if db_chunk_map[cid]["version"] != es_chunk_versions.get(cid)
         ]
 
+        pruned_orphans_count = 0
+        if prune_orphans and orphaned_in_es:
+            for orphan_id in orphaned_in_es:
+                if self.delete_chunk(orphan_id):
+                    pruned_orphans_count += 1
+
         return {
             "status": "completed",
             "reconciled": len(missing_in_es) == 0 and len(orphaned_in_es) == 0 and len(stale_in_es) == 0,
@@ -510,7 +525,8 @@ class ElasticsearchProvider(BaseSearchProvider):
             "orphaned_in_es": orphaned_in_es,
             "orphaned_count": len(orphaned_in_es),
             "stale_in_es": stale_in_es,
-            "stale_count": len(stale_in_es)
+            "stale_count": len(stale_in_es),
+            "pruned_orphans_count": pruned_orphans_count
         }
 
     def reindex_all(self, db: Session) -> Dict[str, Any]:
@@ -535,12 +551,16 @@ class ElasticsearchProvider(BaseSearchProvider):
             vec = json.loads(chunk.embedding) if chunk.embedding else []
             items_to_index.append((chunk, doc, vec))
 
-        success, failed = self.bulk_index_chunks(items_to_index)
+        success, failed, failed_ids = self.bulk_index_chunks(items_to_index)
+        failed_id_set = set(failed_ids)
 
-        # Update indexed_in_es flags in database
+        # Update indexed_in_es flags in database (only mark True if not failed)
         if success > 0:
             for chunk, doc in chunks_with_doc:
-                chunk.indexed_in_es = True
+                if chunk.id not in failed_id_set:
+                    chunk.indexed_in_es = True
+                else:
+                    chunk.indexed_in_es = False
             db.commit()
 
         return {
@@ -733,8 +753,8 @@ class SearchService:
             return self.es_provider.delete_document_chunks(document_id)
         return 0
 
-    def reconcile(self, db: Session) -> Dict[str, Any]:
-        return self.es_provider.reconcile_index(db)
+    def reconcile(self, db: Session, prune_orphans: bool = False) -> Dict[str, Any]:
+        return self.es_provider.reconcile_index(db, prune_orphans=prune_orphans)
 
     def reindex(self, db: Session) -> Dict[str, Any]:
         return self.es_provider.reindex_all(db)

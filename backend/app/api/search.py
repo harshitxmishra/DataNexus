@@ -45,12 +45,13 @@ def get_search_engine_status(db: Session = Depends(get_db)):
     return search_service.get_status(db)
 
 @router.post("/reconcile")
-def reconcile_search_index(db: Session = Depends(get_db)):
+def reconcile_search_index(prune_orphans: bool = False, db: Session = Depends(get_db)):
     """
     Compare canonical database document chunks with Elasticsearch index.
     Detects missing records (in DB but not in ES) and orphaned records (in ES but deleted from DB).
+    Optionally prunes orphaned records when prune_orphans=True.
     """
-    return search_service.reconcile(db)
+    return search_service.reconcile(db, prune_orphans=prune_orphans)
 
 @router.post("/reindex")
 def reindex_all_documents(db: Session = Depends(get_db)):

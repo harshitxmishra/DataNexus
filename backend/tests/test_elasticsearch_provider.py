@@ -247,10 +247,36 @@ class TestElasticsearchIndexingAndPropagation:
             for i in range(3)
         ]
 
-        success, failed = provider.bulk_index_chunks(items)
+        success, failed, failed_ids = provider.bulk_index_chunks(items)
         assert success == 3
         assert failed == 0
+        assert failed_ids == []
         mock_bulk.assert_called_once()
+
+    @patch("backend.app.services.search.helpers.bulk")
+    @patch("backend.app.services.search.Elasticsearch")
+    def test_bulk_indexing_partial_failure_tracking(self, mock_es_class, mock_bulk):
+        """[Mocked Unit Test] Verify partial failure correctly tracks failed chunk IDs."""
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_client.indices.exists.return_value = True
+        mock_es_class.return_value = mock_client
+        mock_bulk.return_value = (
+            2,
+            [{"index": {"_id": "c-2", "status": 400, "error": {"type": "mapper_parsing_exception"}}}]
+        )
+
+        provider = ElasticsearchProvider()
+        doc = Document(id="doc-1", filename="f1.pdf", document_type="invoice", version=1)
+        items = [
+            (DocumentChunk(id=f"c-{i}", document_id="doc-1", chunk_index=i, start_char=0, end_char=10, page_number=1, content=f"text {i}"), doc, [0.1]*384)
+            for i in range(3)
+        ]
+
+        success, failed, failed_ids = provider.bulk_index_chunks(items)
+        assert success == 2
+        assert failed == 1
+        assert failed_ids == ["c-2"]
 
     @patch("backend.app.services.search.Elasticsearch")
     def test_document_deletion_propagation_via_delete_by_query(self, mock_es_class):
@@ -333,6 +359,34 @@ class TestReconciliationLogic:
         assert report["reconciled"] is True
         assert report["missing_count"] == 0
         assert report["orphaned_count"] == 0
+
+    @patch("backend.app.services.search.Elasticsearch")
+    def test_reconciliation_pruning_orphans(self, mock_es_class):
+        """[Mocked Unit Test] Verify prune_orphans=True deletes orphaned chunks."""
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_client.indices.exists.return_value = True
+        mock_client.search.return_value = {
+            "hits": {
+                "hits": [
+                    {"_source": {"chunk_id": "c-valid", "document_id": "d-1", "version": 1}},
+                    {"_source": {"chunk_id": "c-orphan-1", "document_id": "d-deleted", "version": 1}}
+                ]
+            }
+        }
+        mock_client.delete.return_value = {"result": "deleted"}
+        mock_es_class.return_value = mock_client
+
+        provider = ElasticsearchProvider()
+        mock_db = MagicMock()
+        mock_db.query.return_value.join.return_value.filter.return_value.all.return_value = [
+            ("c-valid", "d-1", 1)
+        ]
+
+        report = provider.reconcile_index(mock_db, prune_orphans=True)
+        assert report["orphaned_count"] == 1
+        assert report["pruned_orphans_count"] == 1
+        mock_client.delete.assert_called_once_with(index=provider.index_name, id="c-orphan-1", ignore=[404])
 
 
 class TestResilienceAndFallbackBehavior:
