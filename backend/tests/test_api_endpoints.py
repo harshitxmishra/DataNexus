@@ -91,3 +91,31 @@ def test_data_platform_and_analytics_api(client):
     lin = r_lineage.json()
     assert lin["nodes_count"] > 0
     assert lin["edges_count"] > 0
+
+def test_processing_performance_regression(client):
+    """
+    Regression test: ensures /api/analytics/processing-performance does not throw HTTP 500
+    due to SQLAlchemy func.case vs case() syntax error, and returns valid performance metrics.
+    """
+    r = client.get("/api/analytics/processing-performance")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    if len(data) > 0:
+        item = data[0]
+        assert "file_type" in item
+        assert "total_processed" in item
+        assert "success_count" in item
+        assert "failure_count" in item
+        assert "avg_duration_ms" in item
+        assert "ocr_count" in item
+        assert "indexed_count" in item
+        assert item["total_processed"] >= item["success_count"]
+        assert item["avg_duration_ms"] >= 0.0
+
+def test_duplicate_candidates_api(client):
+    r = client.get("/api/analytics/duplicate-candidates")
+    assert r.status_code == 200
+    data = r.json()
+    assert "total_duplicates_detected" in data
+    assert "candidates" in data

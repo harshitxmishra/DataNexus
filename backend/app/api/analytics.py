@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, case
 from backend.app.database import get_db
 from backend.app.models.document import Document, DocumentChunk
 from backend.app.models.data_platform import PipelineRun, DataQualityResult
@@ -160,11 +160,11 @@ def get_processing_performance(db: Session = Depends(get_db)):
     results = db.query(
         FactDocumentProcessing.file_type,
         func.count(FactDocumentProcessing.event_key).label("total"),
-        func.sum(func.case((FactDocumentProcessing.final_status == "completed", 1), else_=0)).label("success"),
-        func.sum(func.case((FactDocumentProcessing.final_status == "failed", 1), else_=0)).label("failure"),
+        func.sum(case((FactDocumentProcessing.final_status == "completed", 1), else_=0)).label("success"),
+        func.sum(case((FactDocumentProcessing.final_status == "failed", 1), else_=0)).label("failure"),
         func.avg(FactDocumentProcessing.processing_time_ms).label("avg_dur"),
-        func.sum(func.case((FactDocumentProcessing.ocr_invoked == True, 1), else_=0)).label("ocr"),
-        func.sum(func.case((FactDocumentProcessing.indexing_succeeded == True, 1), else_=0)).label("indexed")
+        func.sum(case((FactDocumentProcessing.ocr_invoked == True, 1), else_=0)).label("ocr"),
+        func.sum(case((FactDocumentProcessing.indexing_succeeded == True, 1), else_=0)).label("indexed")
     ).group_by(
         FactDocumentProcessing.file_type
     ).all()
@@ -174,11 +174,11 @@ def get_processing_performance(db: Session = Depends(get_db)):
         items.append(ProcessingPerformanceMetric(
             file_type=r[0],
             total_processed=r[1],
-            success_count=r[2] or 0,
-            failure_count=r[3] or 0,
+            success_count=int(r[2] or 0),
+            failure_count=int(r[3] or 0),
             avg_duration_ms=round(float(r[4] or 0), 1),
-            ocr_count=r[5] or 0,
-            indexed_count=r[6] or 0
+            ocr_count=int(r[5] or 0),
+            indexed_count=int(r[6] or 0)
         ))
     return items
 

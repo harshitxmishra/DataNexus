@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from backend.app.models.document import Document, DocumentStageEvent, DocumentChunk, ExtractedField, InvoiceLineItem, QueueJob
+from backend.app.models.analytics import FactDocumentProcessing
 from backend.app.services.extraction import extraction_service
 from backend.app.services.embeddings import embedding_service
 from backend.app.services.search import search_service
@@ -53,6 +54,7 @@ class ProcessingQueueService:
             "quality_validation"
         ]
 
+        pipeline_start = time.perf_counter()
         overall_success = True
         partial_failure = False
 
@@ -181,6 +183,31 @@ class ProcessingQueueService:
             else:
                 doc.status = "completed"
 
+            # Upsert FactDocumentProcessing
+            total_duration_ms = int((time.perf_counter() - pipeline_start) * 1000)
+            fact_proc = db.query(FactDocumentProcessing).filter(FactDocumentProcessing.document_id == doc.id).first()
+            if not fact_proc:
+                fact_proc = FactDocumentProcessing(
+                    document_id=doc.id,
+                    file_type=doc.file_type or "application/pdf",
+                    file_size_bytes=doc.file_size or 0,
+                    page_count=doc.page_count or 1,
+                    processing_time_ms=total_duration_ms,
+                    ocr_invoked=False,
+                    indexing_succeeded=True,
+                    extraction_succeeded=True,
+                    final_status=doc.status
+                )
+                db.add(fact_proc)
+            else:
+                fact_proc.file_type = doc.file_type or "application/pdf"
+                fact_proc.file_size_bytes = doc.file_size or 0
+                fact_proc.page_count = doc.page_count or 1
+                fact_proc.processing_time_ms = total_duration_ms
+                fact_proc.indexing_succeeded = True
+                fact_proc.extraction_succeeded = True
+                fact_proc.final_status = doc.status
+
             db.commit()
             return doc
 
@@ -191,6 +218,25 @@ class ProcessingQueueService:
                 doc.status = "failed"
                 doc.error_message = str(e)
                 doc.error_category = "processing_exception"
+                
+                total_duration_ms = int((time.perf_counter() - pipeline_start) * 1000)
+                fact_proc = db.query(FactDocumentProcessing).filter(FactDocumentProcessing.document_id == doc.id).first()
+                if not fact_proc:
+                    fact_proc = FactDocumentProcessing(
+                        document_id=doc.id,
+                        file_type=doc.file_type or "application/pdf",
+                        file_size_bytes=doc.file_size or 0,
+                        page_count=doc.page_count or 1,
+                        processing_time_ms=total_duration_ms,
+                        ocr_invoked=False,
+                        indexing_succeeded=False,
+                        extraction_succeeded=False,
+                        final_status="failed"
+                    )
+                    db.add(fact_proc)
+                else:
+                    fact_proc.final_status = "failed"
+                    fact_proc.processing_time_ms = total_duration_ms
                 db.commit()
             raise e
 
