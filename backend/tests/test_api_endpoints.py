@@ -119,3 +119,18 @@ def test_duplicate_candidates_api(client):
     data = r.json()
     assert "total_duplicates_detected" in data
     assert "candidates" in data
+
+def test_search_status_and_reembed_api(client):
+    r_status = client.get("/api/search/status")
+    assert r_status.status_code == 200
+    status_data = r_status.json()
+    assert "active_provider" in status_data
+    assert "chunks_current_representation" in status_data
+    assert "representation_version" in status_data
+    assert status_data["embedding_dimension"] == 384
+
+    r_reembed = client.post("/api/search/reembed?batch_size=10&force_all=false")
+    assert r_reembed.status_code == 200
+    reembed_data = r_reembed.json()
+    assert "reembed" in reembed_data
+    assert "status" in reembed_data["reembed"]

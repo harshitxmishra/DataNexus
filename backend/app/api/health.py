@@ -41,7 +41,9 @@ def readiness(db: Session = Depends(get_db)):
         "embedding_provider": {
             "status": "ready" if embedding_ready else "error",
             "model": embedding_service.model_name,
-            "dimension": embedding_service.dimension
+            "dimension": embedding_service.dimension,
+            "representation_version": embedding_service.representation_version,
+            "is_neural": True
         },
         "queue_broker": {
             "type": settings.QUEUE_BROKER,

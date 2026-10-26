@@ -14,6 +14,9 @@ Phase 2 and Phase 2.5 establish a production-grade Elasticsearch search provider
 
 PostgreSQL (and SQLite) strictly remains the canonical system of record. When an external Elasticsearch cluster is unavailable, the platform seamlessly and transparently falls back to an in-process local search engine without service degradation or silent data corruption.
 
+> [!NOTE]
+> **Subsequent Milestone**: The interim 384-dimensional lexical hashing vector representation documented herein has been superseded by genuine pretrained Transformer embeddings (`sentence-transformers/all-MiniLM-L6-v2`) in Phase 3. See [docs/PHASE_3_VERIFICATION.md](file:///c:/Users/SujeetMishra/Desktop/Data_Nexus/DataNexus/docs/PHASE_3_VERIFICATION.md) for complete details.
+
 ---
 
 ## 2. Infrastructure & Live Cluster Verification

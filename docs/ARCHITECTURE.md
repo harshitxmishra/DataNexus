@@ -30,7 +30,7 @@ graph TD
     subgraph Document Intelligence Engine
         Backend --> ExtractionService[pypdf + Pluggable OCR Interface]
         ExtractionService --> Chunker[Page-Aware Chunker 500c/80c]
-        Chunker --> EmbeddingService[384-d Dense Vector Generator]
+        Chunker --> EmbeddingService[sentence-transformers/all-MiniLM-L6-v2 384-d]
     end
 
     subgraph Search & Retrieval Engine
@@ -168,6 +168,8 @@ The Elasticsearch index (default: `datanexus_chunks`) uses deterministic chunk i
         "index": true,
         "similarity": "cosine"
       },
+      "embedding_model": { "type": "keyword" },
+      "embedding_version": { "type": "integer" },
       "created_at": { "type": "date" },
       "version": { "type": "integer" }
     }
@@ -242,6 +244,30 @@ PostgreSQL remains the single authoritative source of truth. DataNexus does **no
    - **Orphaned Chunks**: Present in Elasticsearch but referring to deleted database documents.
    - **Stale Chunks**: Version mismatched or unindexed.
 5. **Bulk Reindexing**: `POST /api/search/reindex` utilizes `elasticsearch.helpers.bulk` to stream all eligible chunks from PostgreSQL into Elasticsearch in batches and updates `indexed_in_es = True`.
+
+### 5.4 Pretrained Neural Semantic Embeddings & Representation Migration (Phase 3)
+
+DataNexus incorporates genuine pretrained neural Transformer embeddings via the `sentence-transformers` framework:
+- **Default Production Model**: `sentence-transformers/all-MiniLM-L6-v2`
+- **Model Revision**: `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`
+- **Embedding Dimension**: 384 dimensions, verified finite float output with unit $L_2$ normalization ($\|v\|_2 = 1.0$).
+- **Inference Device**: CPU by default (`EMBEDDING_DEVICE=cpu`) with configurable batch size (`EMBEDDING_BATCH_SIZE=32`).
+- **Thread Safety**: Thread-safe lazy singleton model loading with initialization error capture.
+
+#### Representation Versioning Contract
+To eliminate silent vector space contamination when upgrading models, all representations are explicitly versioned:
+- **Version 1 (Legacy / Interim)**: `tfidf-l2-384` deterministic hashing and orthonormal projection. Preserved as `InterimHashingEmbeddingService` for comparative evaluation.
+- **Version 2 (Current Neural Standard)**: `sentence-transformers/all-MiniLM-L6-v2`.
+
+Both relational chunks (`document_chunks.embedding_version`) and search index mappings (`embedding_version`) track the representation version. Cross-space vector scoring between incompatible representations is explicitly rejected, guaranteeing no distorted cosine similarities.
+
+#### Safe, Resumable Re-embedding Workflow (`POST /api/search/reembed`)
+Upgrading existing documents to the current neural representation is handled through an idempotent, batch-oriented re-embedding service:
+1. Identifies chunks where `embedding_version != 2` or `embedding IS NULL`.
+2. Batch-encodes chunk contents in configurable batches (default: 32).
+3. Atomically updates `embedding`, `embedding_model`, `embedding_version`, and resets `indexed_in_es = False`.
+4. Synchronizes updated vectors with the search index (if Elasticsearch is active) or makes them immediately accessible in the local search engine.
+5. Safe against partial network/server interrupts: resumption skips already-migrated chunks (`status: "up_to_date"`).
 
 ---
 

@@ -42,6 +42,8 @@ DATANEXUS_INDEX_MAPPINGS = {
             "index": True,
             "similarity": "cosine"
         },
+        "embedding_model": {"type": "keyword"},
+        "embedding_version": {"type": "integer"},
         "created_at": {"type": "date"},
         "version": {"type": "integer"}
     }
@@ -242,6 +244,8 @@ class ElasticsearchProvider(BaseSearchProvider):
                 "end_char": getattr(chunk, "end_char", 0),
                 "content": chunk.content,
                 "embedding": embedding,
+                "embedding_model": getattr(chunk, "embedding_model", None) or embedding_service.model_name,
+                "embedding_version": getattr(chunk, "embedding_version", 1) or embedding_service.representation_version,
                 "created_at": chunk.created_at.isoformat() if chunk.created_at else None,
                 "version": document.version or 1
             }
@@ -273,6 +277,8 @@ class ElasticsearchProvider(BaseSearchProvider):
                     "end_char": getattr(chunk, "end_char", 0),
                     "content": chunk.content,
                     "embedding": emb,
+                    "embedding_model": getattr(chunk, "embedding_model", None) or embedding_service.model_name,
+                    "embedding_version": getattr(chunk, "embedding_version", 1) or embedding_service.representation_version,
                     "created_at": chunk.created_at.isoformat() if chunk.created_at else None,
                     "version": doc.version or 1
                 }
@@ -330,14 +336,13 @@ class ElasticsearchProvider(BaseSearchProvider):
         if not self.is_available():
             raise RuntimeError("Elasticsearch is currently unreachable.")
 
-        query_vector = embedding_service.embed_text(query)
         results: List[SearchResult] = []
 
         filter_clause = []
         if doc_type_filter:
             filter_clause.append({"term": {"document_type": doc_type_filter}})
 
-        # 1. Lexical (BM25)
+        # 1. Lexical (BM25) — purely lexical, zero dependency on embedding service
         if mode == "lexical":
             es_query = {
                 "bool": {
@@ -378,6 +383,7 @@ class ElasticsearchProvider(BaseSearchProvider):
 
         # 2. Semantic (Dense Vector kNN)
         elif mode == "semantic":
+            query_vector = embedding_service.embed_text(query)
             knn_clause = {
                 "field": "embedding",
                 "query_vector": query_vector,
@@ -411,6 +417,12 @@ class ElasticsearchProvider(BaseSearchProvider):
 
         # 3. Hybrid (Reciprocal Rank Fusion RRF)
         else:
+            try:
+                query_vector = embedding_service.embed_text(query)
+            except Exception as e:
+                logger.warning(f"Hybrid retrieval vector generation failed: {e}. Falling back to BM25.")
+                lex_results, _ = self.search(query, db, mode="lexical", top_k=top_k, doc_type_filter=doc_type_filter)
+                return lex_results, "elasticsearch_bm25 (hybrid_lexical_fallback)"
             match_query = {
                 "bool": {
                     "must": [{"multi_match": {"query": query, "fields": ["content^2.0", "filename^1.0"]}}],
@@ -595,7 +607,18 @@ class LocalSearchProvider(BaseSearchProvider):
         doc_type_filter: Optional[str] = None
     ) -> Tuple[List[SearchResult], str]:
         query_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 1]
-        query_vector = embedding_service.embed_text(query)
+        
+        query_vector = None
+        vector_available = False
+        if mode in ("semantic", "hybrid"):
+            try:
+                query_vector = embedding_service.embed_text(query)
+                vector_available = True
+            except Exception as e:
+                logger.warning(f"LocalSearchProvider vector generation failed: {e}")
+                if mode == "semantic":
+                    raise
+                vector_available = False
 
         query_builder = db.query(DocumentChunk, Document).join(Document, DocumentChunk.document_id == Document.id)
         if doc_type_filter:
@@ -625,13 +648,18 @@ class LocalSearchProvider(BaseSearchProvider):
 
             # 2. Vector Cosine Similarity
             vector_score = 0.0
-            if chunk.embedding:
-                try:
-                    chunk_vec = json.loads(chunk.embedding)
-                    vector_score = embedding_service.cosine_similarity(query_vector, chunk_vec)
-                    vector_score = max(0.0, (vector_score + 1.0) / 2.0)
-                except Exception:
-                    vector_score = 0.0
+            if vector_available and query_vector is not None and chunk.embedding:
+                # Representation space validation: do not silently mix different representation versions
+                chunk_version = getattr(chunk, "embedding_version", 1) or 1
+                if chunk_version == embedding_service.representation_version:
+                    try:
+                        chunk_vec = json.loads(chunk.embedding)
+                        raw_sim = embedding_service.cosine_similarity(query_vector, chunk_vec)
+                        vector_score = max(0.0, (raw_sim + 1.0) / 2.0)
+                    except Exception:
+                        vector_score = 0.0
+                else:
+                    vector_score = 0.0  # Incompatible representation version
 
             snippet = self._generate_snippet(chunk.content, query_terms)
 
@@ -759,9 +787,33 @@ class SearchService:
     def reindex(self, db: Session) -> Dict[str, Any]:
         return self.es_provider.reindex_all(db)
 
+    def reembed_and_reindex(
+        self,
+        db: Session,
+        batch_size: int = 32,
+        force_all: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Safely and idempotently re-embed chunks in database and synchronize Elasticsearch index.
+        """
+        reembed_summary = embedding_service.reembed_chunks(db, batch_size=batch_size, force_all=force_all)
+        reindex_summary = None
+        if self.es_provider.is_available():
+            reindex_summary = self.es_provider.reindex_all(db)
+
+        return {
+            "reembed": reembed_summary,
+            "reindex": reindex_summary
+        }
+
     def get_status(self, db: Session) -> Dict[str, Any]:
         total_chunks = db.query(DocumentChunk).count()
         indexed_chunks = db.query(DocumentChunk).filter(DocumentChunk.indexed_in_es == True).count()
+        chunks_current_rep = db.query(DocumentChunk).filter(
+            DocumentChunk.embedding_version == embedding_service.representation_version
+        ).count()
+        chunks_legacy_rep = max(0, total_chunks - chunks_current_rep)
+
         provider, provider_name = self.get_active_provider()
         cluster_info = self.es_provider.get_cluster_info()
 
@@ -772,6 +824,12 @@ class SearchService:
             "total_chunks_stored": total_chunks,
             "total_chunks_indexed": indexed_chunks,
             "unindexed_outbox_chunks": max(0, total_chunks - indexed_chunks),
+            "chunks_current_representation": chunks_current_rep,
+            "chunks_legacy_representation": chunks_legacy_rep,
+            "embedding_model": embedding_service.model_name,
+            "embedding_dimension": embedding_service.dimension,
+            "representation_version": embedding_service.representation_version,
+            "model_metadata": embedding_service.get_model_metadata(),
             "supported_modes": ["lexical", "semantic", "hybrid"],
             "fallback_active": provider_name != "elasticsearch"
         }

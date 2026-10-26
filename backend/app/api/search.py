@@ -59,3 +59,15 @@ def reindex_all_documents(db: Session = Depends(get_db)):
     Trigger bulk reindexing of all document chunks from the canonical database into Elasticsearch.
     """
     return search_service.reindex(db)
+
+@router.post("/reembed")
+def reembed_and_reindex_chunks(
+    batch_size: int = 32,
+    force_all: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Regenerate neural embeddings for existing chunks using the active pretrained model
+    and update the search index. Safe, idempotent, and resumable.
+    """
+    return search_service.reembed_and_reindex(db, batch_size=batch_size, force_all=force_all)

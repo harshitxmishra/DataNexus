@@ -208,20 +208,40 @@ curl -X POST http://127.0.0.1:8008/api/search/reindex
 
 ---
 
-## 6. Optional Service Configurations
+## 6. Pretrained Neural Embeddings & Re-Embedding Workflow
 
-### 6.1 Enabling Gemini Retrieval-Augmented Generation (RAG)
-1. Obtain an API key from Google AI Studio.
-2. Update `.env`:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   LLM_PROVIDER=gemini
-   LLM_MODEL=gemini-1.5-flash
-   ```
+DataNexus uses `sentence-transformers/all-MiniLM-L6-v2` as its canonical pretrained embedding model, generating 384-dimensional unit-$L_2$-normalized dense vectors for chunk indexing and semantic search.
+
+### 6.1 Configuration Options
+In `.env`:
+```env
+EMBEDDING_PROVIDER=sentence_transformers
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_MODEL_REVISION=1110a243fdf4706b3f48f1d95db1a4f5529b4d41
+EMBEDDING_REPRESENTATION_VERSION=2
+EMBEDDING_DEVICE=cpu
+EMBEDDING_BATCH_SIZE=32
+```
+
+### 6.2 Idempotent Re-Embedding
+When migrating from legacy representations (Version 1) to neural representations (Version 2), or after updating models:
+```bash
+# Re-embed all eligible chunks (skipping chunks already at version 2):
+curl -X POST http://127.0.0.1:8008/api/search/reembed
+
+# Force re-embedding of all chunks even if already at version 2:
+curl -X POST "http://127.0.0.1:8008/api/search/reembed?overwrite=true&batch_size=32"
+```
+
+### 6.3 Running the Retrieval Benchmark
+Execute the formal 10-query retrieval evaluation suite comparing BM25, Interim Hashing, Pretrained MiniLM, and Hybrid RRF:
+```bash
+python -m backend.app.evaluation.retrieval_eval
+```
 
 ---
 
-## 5. Troubleshooting Common Issues
+## 7. Troubleshooting Common Issues
 
 ### Issue 1: Port 8000 or 8008 Already in Use
 - **Cause**: Another local process is bound to the target port.
@@ -234,3 +254,7 @@ curl -X POST http://127.0.0.1:8008/api/search/reindex
 ### Issue 3: SQLite Database Locked
 - **Cause**: Multiple write transactions concurrent with external SQLite database viewers.
 - **Solution**: Close external database GUI tools (e.g., DB Browser for SQLite) when running write-heavy batch ETL scripts.
+
+### Issue 4: Cold-Start Latency for Embedding Model
+- **Cause**: Initial cold load of PyTorch runtime and Transformer weights into memory on CPU takes 10-15 seconds.
+- **Solution**: The model remains memory-resident across requests within the process lifecycle; subsequent inferences run in 25-30ms per batch.

@@ -82,6 +82,8 @@ class DocumentChunk(Base):
     
     # Embedding stored as serialized JSON array of floats for local search
     embedding = Column(Text, nullable=True)
+    embedding_model = Column(String(100), nullable=True)
+    embedding_version = Column(Integer, default=1, nullable=False, index=True)
     indexed_in_es = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

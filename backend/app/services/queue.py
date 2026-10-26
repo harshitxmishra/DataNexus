@@ -130,12 +130,22 @@ class ProcessingQueueService:
 
             # Stage 4: Embeddings Generation
             start_t = time.perf_counter()
-            for chunk_obj in chunks_to_add:
-                vec = embedding_service.embed_text(chunk_obj.content)
+            chunk_texts = [c.content for c in chunks_to_add]
+            chunk_vectors = embedding_service.embed_texts(chunk_texts)
+            for chunk_obj, vec in zip(chunks_to_add, chunk_vectors):
                 chunk_obj.embedding = json.dumps(vec)
+                chunk_obj.embedding_model = embedding_service.model_name
+                chunk_obj.embedding_version = embedding_service.representation_version
             db.flush()
             duration_ms = int((time.perf_counter() - start_t) * 1000)
-            self._record_stage(doc.id, "embedding", "completed", duration_ms, f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s).", db)
+            self._record_stage(
+                doc.id,
+                "embedding",
+                "completed",
+                duration_ms,
+                f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s) using {embedding_service.model_name} (v{embedding_service.representation_version}).",
+                db
+            )
 
             # Stage 5: Search Indexing
             start_t = time.perf_counter()

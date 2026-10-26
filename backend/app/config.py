@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     ELASTICSEARCH_INDEX: str = "datanexus_documents"
     ELASTICSEARCH_USERNAME: str = ""
     ELASTICSEARCH_PASSWORD: str = ""
-    ELASTICSEARCH_TIMEOUT_SECONDS: float = 3.0
+    ELASTICSEARCH_TIMEOUT_SECONDS: float = 1.0
     ELASTICSEARCH_CA_CERTS: str = ""
     ELASTICSEARCH_VERIFY_CERTS: bool = True
-    ELASTICSEARCH_MAX_RETRIES: int = 2
+    ELASTICSEARCH_MAX_RETRIES: int = 1
     ELASTICSEARCH_RETRY_ON_TIMEOUT: bool = True
     
     # Queue
@@ -32,8 +32,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     
     # Embeddings
-    EMBEDDING_PROVIDER: str = "local_dense"  # 'local_dense', 'local_tfidf', or 'gemini'
-    EMBEDDING_MODEL_NAME: str = "tfidf-l2-384"
+    EMBEDDING_PROVIDER: str = "sentence_transformers"  # 'sentence_transformers', 'local_dense', or 'gemini'
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_MODEL_REVISION: str = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_BATCH_SIZE: int = 32
+    EMBEDDING_DEVICE: str = "cpu"
+    EMBEDDING_CACHE_DIR: str = ""
+    EMBEDDING_REPRESENTATION_VERSION: int = 2
     
     # LLM
     GEMINI_API_KEY: str = ""

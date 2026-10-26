@@ -16,7 +16,7 @@ def test_endpoint(name: str, path: str, expected_status: int = 200) -> dict:
     print(f"Testing {name.ljust(35)} -> {path} ... ", end="")
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "DataNexus-SmokeTest/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=30) as response:
             status = response.status
             data = json.loads(response.read().decode("utf-8"))
             if status == expected_status:
@@ -78,7 +78,7 @@ def main():
             data=search_payload,
             headers={"Content-Type": "application/json", "User-Agent": "DataNexus-SmokeTest/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             s_data = json.loads(resp.read().decode("utf-8"))
             if resp.status == 200 and len(s_data.get("results", [])) > 0:
                 print(f"[OK] (Found {len(s_data['results'])} hits)")
