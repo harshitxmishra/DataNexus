@@ -90,4 +90,21 @@ Migrate DataNexus from SQLite-only assumptions to first-class PostgreSQL support
    - Add PostgreSQL dialect schema generation and query validation tests in `backend/tests/test_database_postgres.py`.
    - Ensure all 14 existing tests continue to pass without regression.
 7. **Commit & Verification Gate**:
-   - Checkpoint commit: `feat(database): implement PostgreSQL support and Alembic migrations`.
+   - Checkpoint commit: `19938e1` (`feat(database): implement PostgreSQL support, Alembic migrations, and SQLite migration utility`). Verified in `docs/PHASE_1_VERIFICATION.md`.
+
+---
+
+## 6. Phase 2 Implementation: Elasticsearch Integration
+
+### Objective
+Implement a production-grade Elasticsearch provider supporting BM25 full-text retrieval, 384-dimensional dense vector k-NN search, native Reciprocal Rank Fusion (RRF), idempotent upsert, bulk indexing, deletion propagation, outbox-driven index reconciliation, and frontend status observability while strictly preserving PostgreSQL as the single source of truth.
+
+### Execution Summary
+- **Elasticsearch Provider**: Implemented in `backend/app/services/search.py` with versioned index mappings, multi-match BM25 boosting (`content^2.0`, `filename^1.0`), 384-d cosine vector kNN, and RRF rank fusion DSL.
+- **Outbox Consistency Strategy**: Added tracking via `DocumentChunk.indexed_in_es`. Offline chunks remain flagged for reconciliation rather than silently marked as indexed.
+- **Reconciliation & Reindex API**: `POST /api/search/reconcile` detects missing, orphaned, and stale records; `POST /api/search/reindex` bulk syncs database chunks to Elasticsearch.
+- **Deletion Propagation**: `DELETE /api/documents/{id}` issues `delete_by_query` to clean up associated chunks from Elasticsearch.
+- **Resilient Fallback**: If Elasticsearch is offline or times out, DataNexus falls back to the in-process `LocalSearchProvider` without failing user operations.
+- **Frontend Truthful Telemetry**: `SearchPage.tsx` displays active provider status (Elasticsearch vs. Local Fallback) with live indexed chunk metrics.
+- **Automated Tests**: 13 unit/contract tests added in `backend/tests/test_elasticsearch_provider.py`; all 38 backend tests passed (1 live test skipped cleanly). Verified in `docs/PHASE_2_VERIFICATION.md`.
+

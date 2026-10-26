@@ -151,10 +151,10 @@ class ProcessingQueueService:
                 self._record_stage(doc.id, "indexing", "completed", duration_ms, f"Indexed {len(chunks_to_add)} chunk(s) in Elasticsearch.", db)
             else:
                 for chunk_obj in chunks_to_add:
-                    chunk_obj.indexed_in_es = True  # Indexed in local relational/vector engine
+                    chunk_obj.indexed_in_es = False  # Pending Elasticsearch outbox indexing
                 duration_ms = int((time.perf_counter() - start_t) * 1000)
                 self._record_stage(doc.id, "indexing", "completed", duration_ms, 
-                                   f"Indexed {len(chunks_to_add)} chunk(s) in local search index (Elasticsearch offline).", db)
+                                   f"Elasticsearch offline. {len(chunks_to_add)} chunk(s) stored in database; local search fallback active.", db)
 
             # Stage 6: Analytical ETL Transformations
             start_t = time.perf_counter()

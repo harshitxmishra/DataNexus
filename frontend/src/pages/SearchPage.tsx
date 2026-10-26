@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search as SearchIcon,
   Sparkles,
@@ -11,6 +11,8 @@ import {
   AlertCircle,
   HelpCircle,
   ChevronRight,
+  Database,
+  Server,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { SearchResponse, QAResponse } from '../types';
@@ -26,6 +28,7 @@ export const SearchPage: React.FC<SearchPageProps> = ({ onSelectDocument }) => {
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [engineStatus, setEngineStatus] = useState<any | null>(null);
 
   // QA state
   const [question, setQuestion] = useState('');
@@ -34,6 +37,10 @@ export const SearchPage: React.FC<SearchPageProps> = ({ onSelectDocument }) => {
   const [qaError, setQaError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'search' | 'qa'>('search');
+
+  useEffect(() => {
+    api.getSearchStatus().then(setEngineStatus).catch(() => {});
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,13 +77,35 @@ export const SearchPage: React.FC<SearchPageProps> = ({ onSelectDocument }) => {
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="border-b border-slate-800 pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
-          <span>Search & Intelligence Catalog</span>
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">
-          BM25 full-text lexical matching, 384-dimensional dense vector nearest-neighbour retrieval, and citation-backed question answering.
-        </p>
+      <div className="border-b border-slate-800 pb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
+            <span>Search & Intelligence Catalog</span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            BM25 full-text lexical matching, 384-dimensional dense vector nearest-neighbour retrieval, and citation-backed question answering.
+          </p>
+        </div>
+
+        {engineStatus && (
+          <div className="flex items-center space-x-2 text-xs font-mono">
+            {engineStatus.elasticsearch_connected ? (
+              <div className="bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 px-3 py-1.5 rounded-md flex items-center space-x-2 shadow-sm">
+                <Server className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-semibold">Elasticsearch Active</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-emerald-200/80">{engineStatus.total_chunks_indexed} chunks indexed</span>
+              </div>
+            ) : (
+              <div className="bg-amber-950/50 border border-amber-800/70 text-amber-300 px-3 py-1.5 rounded-md flex items-center space-x-2 shadow-sm">
+                <Database className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-semibold">Local Search Fallback Active</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-amber-200/80">ES Offline</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Workspace Switcher */}

@@ -41,15 +41,20 @@ def answer_document_question(payload: QARequest, db: Session = Depends(get_db)):
 
 @router.get("/status")
 def get_search_engine_status(db: Session = Depends(get_db)):
-    """Inspect active search provider, index status, and total indexed chunks."""
-    provider, provider_name = search_service.get_active_provider()
-    total_chunks = db.query(DocumentChunk).count()
-    indexed_chunks = db.query(DocumentChunk).filter(DocumentChunk.indexed_in_es == True).count()
+    """Inspect active search provider, cluster health, index status, and total indexed chunks."""
+    return search_service.get_status(db)
 
-    return {
-        "active_provider": provider_name,
-        "elasticsearch_connected": search_service.es_provider.is_available(),
-        "total_chunks_stored": total_chunks,
-        "total_chunks_indexed": indexed_chunks,
-        "supported_modes": ["lexical", "semantic", "hybrid"]
-    }
+@router.post("/reconcile")
+def reconcile_search_index(db: Session = Depends(get_db)):
+    """
+    Compare canonical database document chunks with Elasticsearch index.
+    Detects missing records (in DB but not in ES) and orphaned records (in ES but deleted from DB).
+    """
+    return search_service.reconcile(db)
+
+@router.post("/reindex")
+def reindex_all_documents(db: Session = Depends(get_db)):
+    """
+    Trigger bulk reindexing of all document chunks from the canonical database into Elasticsearch.
+    """
+    return search_service.reindex(db)

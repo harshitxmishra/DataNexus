@@ -9,6 +9,7 @@ from backend.app.models.document import Document
 from backend.app.schemas.document import DocumentListItem, DocumentDetail
 from backend.app.services.storage import storage_service
 from backend.app.services.queue import queue_service
+from backend.app.services.search import search_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -127,6 +128,9 @@ def delete_document(document_id: str, db: Session = Depends(get_db)):
     storage_path = doc.storage_path
     db.delete(doc)
     db.commit()
+
+    # Propagate deletion to Elasticsearch index
+    search_service.delete_document_chunks(document_id)
 
     # Delete physical file
     storage_service.delete_file(storage_path)

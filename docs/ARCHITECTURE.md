@@ -139,7 +139,109 @@ To eliminate score calibration discrepancies between lexical BM25 scores (unboun
 
 $$RRF(d) = \sum_{m \in \{lexical, semantic\}} \frac{1}{k + \text{rank}_m(d)}$$
 
-Where $k = 60$ is the standard rank smoothing constant.
+### 5.1 Elasticsearch Index Mapping Specification
+
+The Elasticsearch index (default: `datanexus_chunks`) uses deterministic chunk identifiers (`chunk_{chunk_id}`) and a versioned schema:
+
+```json
+{
+  "mappings": {
+    "properties": {
+      "chunk_id": { "type": "keyword" },
+      "document_id": { "type": "keyword" },
+      "filename": {
+        "type": "text",
+        "fields": { "raw": { "type": "keyword" } }
+      },
+      "document_type": { "type": "keyword" },
+      "page_number": { "type": "integer" },
+      "chunk_index": { "type": "integer" },
+      "start_char": { "type": "integer" },
+      "end_char": { "type": "integer" },
+      "content": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+      },
+      "embedding": {
+        "type": "dense_vector",
+        "dims": 384,
+        "index": true,
+        "similarity": "cosine"
+      },
+      "created_at": { "type": "date" },
+      "version": { "type": "integer" }
+    }
+  }
+}
+```
+
+### 5.2 Retrieval Modes & Query DSL
+
+1. **Lexical BM25 Retrieval**:
+   Uses multi-match scoring over `content^2.0` and `filename^1.0` with term filtering on `document_type` and highlighted fragments:
+   ```json
+   {
+     "query": {
+       "bool": {
+         "must": [{
+           "multi_match": {
+             "query": "invoice payment",
+             "fields": ["content^2.0", "filename^1.0"]
+           }
+         }],
+         "filter": [{ "term": { "document_type": "invoice" } }]
+       }
+     }
+   }
+   ```
+
+2. **Dense Vector k-NN Retrieval**:
+   Executes approximate cosine similarity nearest-neighbor search with 384-dimensional query vectors:
+   ```json
+   {
+     "knn": {
+       "field": "embedding",
+       "query_vector": [... 384 floats ...],
+       "k": 10,
+       "num_candidates": 50,
+       "filter": [{ "term": { "document_type": "invoice" } }]
+     }
+   }
+   ```
+
+3. **Hybrid Reciprocal Rank Fusion (RRF)**:
+   Combines multi-match lexical retrieval and dense vector kNN search in a single pass using Elasticsearch's native `rrf` ranker:
+   ```json
+   {
+     "query": { "bool": { "must": [...] } },
+     "knn": { ... },
+     "rank": {
+       "rrf": {
+         "window_size": 50,
+         "rank_constant": 60
+       }
+     }
+   }
+   ```
+   *In local fallback mode, DataNexus executes in-process RRF using the identical smoothing constant $k=60$.*
+
+### 5.3 PostgreSQL-to-Elasticsearch Consistency & Outbox Strategy
+
+PostgreSQL remains the single authoritative source of truth. DataNexus does **not** assume two-phase commits (2PC) or distributed atomic transactions between PostgreSQL and Elasticsearch. Instead, an **outbox state pattern** guarantees eventual consistency and observable failure recovery:
+
+1. **Deterministic Identifiers**: Every document chunk in Elasticsearch is keyed by `chunk_{chunk_id}`, ensuring idempotent upserts via `es.index(index=..., id=f"chunk_{chunk.id}", document=...)`.
+2. **Indexing State Flag**: Each `DocumentChunk` row in the database includes an `indexed_in_es` boolean column.
+   - When Elasticsearch is reachable and indexing succeeds, `indexed_in_es = True`.
+   - If Elasticsearch is offline or times out, `indexed_in_es` remains `False`. Document processing completes with status `partially_completed` (or logged stage completion) without aborting relational ETL or corrupting relational state.
+3. **Deletion Propagation**: When a document is deleted via `DELETE /api/documents/{id}`, DataNexus immediately issues a `delete_by_query` request to Elasticsearch:
+   ```json
+   { "query": { "term": { "document_id": document_id } } }
+   ```
+4. **Index Reconciliation**: The reconciliation service (`POST /api/search/reconcile`) compares database chunks with Elasticsearch IDs:
+   - **Missing Chunks**: Present in PostgreSQL (`indexed_in_es = False`) but absent from Elasticsearch.
+   - **Orphaned Chunks**: Present in Elasticsearch but referring to deleted database documents.
+   - **Stale Chunks**: Version mismatched or unindexed.
+5. **Bulk Reindexing**: `POST /api/search/reindex` utilizes `elasticsearch.helpers.bulk` to stream all eligible chunks from PostgreSQL into Elasticsearch in batches and updates `indexed_in_es = True`.
 
 ---
 

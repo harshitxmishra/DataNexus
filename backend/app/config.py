@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     ELASTICSEARCH_INDEX: str = "datanexus_documents"
     ELASTICSEARCH_USERNAME: str = ""
     ELASTICSEARCH_PASSWORD: str = ""
+    ELASTICSEARCH_TIMEOUT_SECONDS: float = 3.0
+    ELASTICSEARCH_CA_CERTS: str = ""
+    ELASTICSEARCH_VERIFY_CERTS: bool = True
+    ELASTICSEARCH_MAX_RETRIES: int = 2
+    ELASTICSEARCH_RETRY_ON_TIMEOUT: bool = True
     
     # Queue
     QUEUE_BROKER: str = "database"  # 'database', 'memory', or 'redis'

@@ -158,9 +158,59 @@ python scripts/migrate_sqlite_to_postgres.py --target-url postgresql://postgres:
 
 ---
 
-## 5. Optional Service Configurations
+## 5. Elasticsearch Configuration & Search Integration
 
-### 4.3 Enabling Gemini Retrieval-Augmented Generation (RAG)
+DataNexus supports full-text BM25 search, dense vector k-NN retrieval, and hybrid Reciprocal Rank Fusion (RRF) using an external Elasticsearch cluster (version 8.x or 9.x), with an automatic, zero-dependency in-process local search fallback when Elasticsearch is offline.
+
+### 5.1 Environment Variables
+Configure Elasticsearch in `.env`:
+```env
+# Elasticsearch Cluster Endpoint
+ELASTICSEARCH_URL=http://localhost:9200
+
+# Authentication (optional)
+ELASTICSEARCH_USERNAME=elastic
+ELASTICSEARCH_PASSWORD=changeme
+
+# Index Configuration & Connection Tuning
+ELASTICSEARCH_INDEX=datanexus_chunks
+ELASTICSEARCH_TIMEOUT_SECONDS=3.0
+ELASTICSEARCH_MAX_RETRIES=2
+ELASTICSEARCH_RETRY_ON_TIMEOUT=true
+ELASTICSEARCH_VERIFY_CERTS=true
+ELASTICSEARCH_CA_CERTS=""
+```
+
+### 5.2 Starting a Local Elasticsearch Instance
+If Docker is available:
+```bash
+docker run -d --name datanexus-es \
+  -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+```
+
+### 5.3 Index Lifecycle, Reconciliation & Reindexing
+PostgreSQL (or SQLite) is the canonical source of truth for all document chunks. When Elasticsearch is online, chunks are indexed idempotently during document processing. If Elasticsearch is offline or suffers a transient failure, chunks are marked unindexed (`indexed_in_es = False`) and tracked in the outbox.
+
+To check search engine status and index alignment via the REST API:
+```bash
+# Check status and unindexed outbox count:
+curl http://127.0.0.1:8008/api/search/status
+
+# Run index reconciliation to compare database chunks with Elasticsearch:
+curl -X POST http://127.0.0.1:8008/api/search/reconcile
+
+# Reindex all document chunks from the canonical database into Elasticsearch:
+curl -X POST http://127.0.0.1:8008/api/search/reindex
+```
+
+---
+
+## 6. Optional Service Configurations
+
+### 6.1 Enabling Gemini Retrieval-Augmented Generation (RAG)
 1. Obtain an API key from Google AI Studio.
 2. Update `.env`:
    ```env

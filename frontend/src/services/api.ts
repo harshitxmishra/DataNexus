@@ -98,6 +98,21 @@ export const api = {
     return res.json();
   },
 
+  async getSearchStatus(): Promise<{
+    active_provider: string;
+    elasticsearch_connected: boolean;
+    total_chunks_stored: number;
+    total_chunks_indexed: number;
+    unindexed_outbox_chunks: number;
+    supported_modes: string[];
+    fallback_active: boolean;
+    cluster_info?: any;
+  }> {
+    const res = await fetch(`${API_BASE}/search/status`);
+    if (!res.ok) throw new Error(`Search status failed: ${res.statusText}`);
+    return res.json();
+  },
+
   // Data Platform
   async listPipelineRuns(): Promise<PipelineRun[]> {
     const res = await fetch(`${API_BASE}/data-platform/pipeline/runs`);
