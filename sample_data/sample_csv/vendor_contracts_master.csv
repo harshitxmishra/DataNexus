@@ -1,0 +1,7 @@
+contract_id,vendor_name,service_category,annual_cap_usd,payment_terms,sla_target,auto_renew
+CNT-101,Apex Cloud Services,Cloud Infrastructure,150000.00,Net 30,99.99%,TRUE
+CNT-102,Global Logistics Partner,Logistics & Freight,100000.00,Net 30,98.50%,TRUE
+CNT-103,Starlight Software Labs,Engineering Consulting,180000.00,Net 30,99.00%,FALSE
+CNT-104,Meridian Facilities Corp,Facility Management,60000.00,Net 30,95.00%,TRUE
+CNT-105,Nordic Data Systems,Database Software,120000.00,Net 30,99.95%,TRUE
+CNT-106,Pinnacle Engineering Group,Network Infrastructure,250000.00,Net 30,99.90%,TRUE

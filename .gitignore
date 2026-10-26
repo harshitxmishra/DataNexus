@@ -1,0 +1,26 @@
+# Python & Environments
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+
+# Local Database & Storage
+*.db
+*.sqlite3
+data/storage/*
+!data/storage/.gitkeep
+data/exports/*
+!data/exports/.gitkeep
+data/staging/*
+!data/staging/.gitkeep
+
+# Local Environment Variables
+.env
