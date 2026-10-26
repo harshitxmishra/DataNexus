@@ -60,7 +60,7 @@ graph TD
 
 | Component | Canonical Responsibility | Hard Architectural Constraint |
 |---|---|---|
-| **Relational Database** (`PostgreSQL` / `SQLite`) | Single source of truth for document metadata, processing states, extracted fields, star-schema analytics, data quality evaluations, and lineage. | Never stores raw large binary document streams. |
+| **Relational Database** (`PostgreSQL` / `SQLite`) | Canonical source of truth for document metadata, processing states, extracted fields, star-schema analytics, data quality evaluations, and lineage. Managed via Alembic migrations. Uses PostgreSQL connection pooling (`pool_size=10`, `max_overflow=20`) and dialect-aware analytical SQL views. | Never stores raw large binary document streams. Primary PostgreSQL is source of truth; Elasticsearch failures cannot erase canonical records. |
 | **Storage Service** | Manages content-addressable storage using SHA-256 hashes with directory traversal sanitization. | Never alters original file bytes; retains immutable raw input. |
 | **Elasticsearch** | Fast lexical BM25 indexing, dense vector (384-d) k-nearest neighbor retrieval, and Reciprocal Rank Fusion (RRF). | Never treated as canonical business record authority. |
 | **Local Search Engine** | Resilient in-process search provider with cosine similarity over unit-normalized dense vectors and token matching when ES is offline. | Never fabricates artificial similarity scores. |
