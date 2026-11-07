@@ -16,7 +16,8 @@ import {
   AnalyticalViewItem,
   AnalyticalViewData,
   PowerBiSemanticModel,
-  PowerBiMQueriesResponse
+  PowerBiMQueriesResponse,
+  DocumentEvidenceCoordinates
 } from '../types';
 
 const API_BASE = '/api';
@@ -51,6 +52,16 @@ export const api = {
   async getDocument(id: string): Promise<DocumentDetail> {
     const res = await fetch(`${API_BASE}/documents/${id}`);
     if (!res.ok) throw new Error(`Failed to get document detail: ${res.statusText}`);
+    return res.json();
+  },
+
+  getDocumentDownloadUrl(id: string): string {
+    return `${API_BASE}/documents/${id}/download`;
+  },
+
+  async getDocumentEvidenceCoordinates(id: string): Promise<DocumentEvidenceCoordinates> {
+    const res = await fetch(`${API_BASE}/documents/${id}/evidence-coordinates`);
+    if (!res.ok) throw new Error(`Failed to load evidence coordinates: ${res.statusText}`);
     return res.json();
   },
 

@@ -371,3 +371,51 @@ export interface StreamStageEvent {
   details: string;
   timestamp: string;
 }
+
+export interface BoundingBox {
+  pdf_x: number;
+  pdf_y: number;
+  pdf_width: number;
+  pdf_height: number;
+  page_width: number;
+  page_height: number;
+  norm_left_pct: number;
+  norm_top_pct: number;
+  norm_width_pct: number;
+  norm_height_pct: number;
+}
+
+export interface FieldCoordinateItem {
+  field_id: string;
+  field_name: string;
+  field_value: string;
+  page_number: number;
+  has_coordinates: boolean;
+  bounding_box: BoundingBox | null;
+}
+
+export interface LineItemCoordinateItem {
+  line_id: string;
+  line_number: number;
+  description: string;
+  amount: number;
+  page_number: number;
+  has_coordinates: boolean;
+  bounding_box: BoundingBox | null;
+}
+
+export interface DocumentEvidenceCoordinates {
+  document_id: string;
+  is_pdf: boolean;
+  total_pages: number;
+  pages: Array<{
+    page_number: number;
+    width: number;
+    height: number;
+    elements_count: number;
+  }>;
+  field_coordinates: Record<string, FieldCoordinateItem>;
+  line_item_coordinates: LineItemCoordinateItem[];
+  error?: string;
+  message?: string;
+}
