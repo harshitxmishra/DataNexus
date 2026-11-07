@@ -68,7 +68,24 @@ def main():
     if not spend:
         failures += 1
 
-    # 4. Search & QA
+    # 4. Phase 5 Data Platform, Lineage & BI Endpoints
+    scorecard = test_endpoint("Data Quality Scorecard", "/api/data-platform/quality/scorecard")
+    if not scorecard or scorecard.get("total_evaluations", 0) == 0:
+        failures += 1
+
+    views = test_endpoint("Curated Analytical Views", "/api/analytics/views")
+    if not views or len(views.get("views", [])) < 7:
+        failures += 1
+
+    pbi = test_endpoint("Power BI Semantic Model", "/api/analytics/powerbi/semantic-model")
+    if not pbi or len(pbi.get("tables", [])) < 6:
+        failures += 1
+
+    lineage = test_endpoint("Lineage Summary", "/api/lineage/summary")
+    if not lineage or lineage.get("total_nodes", 0) == 0:
+        failures += 1
+
+    # 5. Search & QA
     # Test POST search query
     print(f"Testing {'Hybrid Search Query'.ljust(35)} -> /api/search/query ... ", end="")
     try:

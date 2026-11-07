@@ -9,12 +9,15 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from backend.app.database import get_db
+from backend.app.models.document import Document
 from backend.app.models.data_platform import PipelineRun, DataQualityResult, RejectedRecord, StagedCsvRecord
 from backend.app.models.analytics import FactInvoice, DimVendor, DimDate
 from backend.app.schemas.data_platform import (
-    PipelineRunResponse, DataQualityResultResponse, RejectedRecordResponse
+    PipelineRunResponse, DataQualityResultResponse, RejectedRecordResponse,
+    DetailedScorecardResponse, QualityEvaluationTriggerResponse
 )
 from backend.app.services.pipeline import pipeline_service
+from backend.app.services.quality import quality_service
 
 router = APIRouter(prefix="/data-platform", tags=["Data Platform"])
 
@@ -48,22 +51,31 @@ def list_quality_results(
     results = query.order_by(desc(DataQualityResult.evaluated_at)).offset(skip).limit(limit).all()
     return results
 
-@router.get("/quality/scorecard")
+@router.get("/quality/scorecard", response_model=DetailedScorecardResponse)
 def get_quality_scorecard(db: Session = Depends(get_db)):
-    """Summary scorecard of rule pass/fail/warn metrics."""
-    total_evals = db.query(func.count(DataQualityResult.id)).scalar() or 0
-    passed = db.query(func.count(DataQualityResult.id)).filter(DataQualityResult.status == "pass").scalar() or 0
-    failed = db.query(func.count(DataQualityResult.id)).filter(DataQualityResult.status == "fail").scalar() or 0
-    warnings = db.query(func.count(DataQualityResult.id)).filter(DataQualityResult.status == "warning").scalar() or 0
-    pass_rate = round((passed / total_evals * 100), 1) if total_evals > 0 else 100.0
+    """Summary scorecard of rule pass/fail/warn metrics including by-rule and by-category breakdowns."""
+    return quality_service.get_detailed_scorecard(db)
 
-    return {
-        "total_evaluations": total_evals,
-        "passed": passed,
-        "failed": failed,
-        "warnings": warnings,
-        "pass_rate_percentage": pass_rate
-    }
+@router.post("/quality/evaluate", response_model=QualityEvaluationTriggerResponse)
+def evaluate_quality(
+    document_id: Optional[str] = Query(None, description="Optional document ID to evaluate; if omitted, evaluates all documents"),
+    db: Session = Depends(get_db)
+):
+    """Trigger on-demand data quality rule evaluations for one or all completed documents."""
+    if document_id:
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document {document_id} not found.")
+        evals = quality_service.evaluate_document_quality(document_id, db)
+        scorecard = quality_service.get_detailed_scorecard(db)
+        return {
+            "status": "success",
+            "documents_evaluated": 1,
+            "total_rules_evaluated": len(evals),
+            "scorecard": scorecard
+        }
+    else:
+        return quality_service.evaluate_all_documents(db)
 
 @router.get("/rejected-records", response_model=List[RejectedRecordResponse])
 def list_rejected_records(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):

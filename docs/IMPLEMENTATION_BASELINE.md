@@ -40,9 +40,9 @@ This document establishes the verified, factual starting point for the long-term
 | **Embedding Generation** | Pretrained neural Transformer (`sentence-transformers/all-MiniLM-L6-v2`, 384-d) | :white_check_mark: Operational (Pretrained MiniLM) | Real pretrained weights loaded in CPU inference; representation versioning (v2) and idempotent re-embedding verified (Phase 3). |
 | **Question Answering (RAG)** | Fast GroqCloud LLM inference with negative gating, verifiable citations, multi-model fallback, and local extractive fallback | :white_check_mark: Operational (GroqCloud RAG) | Fully operational via `GroqRAGService` (`qwen/qwen3.8-27b`), negative question refusal, inline citation mapping, and multi-model fallback (Phase 4). |
 | **Dimensional Modeling & ETL** | Idempotent dimensional star schema (`dim_vendor`, `dim_date`, `fact_invoice`...) | :white_check_mark: Operational | Verified with 6 seeded invoices and incremental upsert logic. |
-| **Data Quality Rules** | Deterministic rules engine (8 rules) auditing completeness, balance, dates | :white_check_mark: Operational | Verified with pass/warn/fail scorecard reporting. |
-| **Lineage Graph (DAG)** | Multi-hop lineage recording: file -> document -> field -> fact -> view -> metric | :white_check_mark: Operational | Interactive lineage graph API verified. |
-| **Curated SQL Views** | 7 pre-aggregated analytical views in `views.py` | :warning: Dialect-Dependent | Contains SQLite string functions (`substr`); requires ANSI / PostgreSQL compatibility adjustments (Phase 1). |
+| **Data Quality Rules** | Deterministic governance engine (11 rules) auditing completeness, balance, dates, line items, and terms | :white_check_mark: Operational (11-Rule Governance) | Comprehensive 11-rule audit suite with on-demand evaluation, by-rule and by-category scorecard breakdowns (Phase 5). |
+| **Lineage Graph (DAG)** | Multi-hop directed lineage DAG (6 hops: file -> document -> field -> fact -> view -> metric) | :white_check_mark: Operational (6-Hop DAG) | Multi-hop BFS traversal, directional filtering (upstream/downstream), and rich node metadata resolution (Phase 5). |
+| **Curated SQL Views** | 7 pre-aggregated analytical views in `views.py` | :white_check_mark: Operational (Dual Dialect & API) | 7 views verified across PostgreSQL and SQLite; queryable dynamically via `/api/analytics/views` and Power BI DirectQuery (Phase 5). |
 | **Frontend Workspaces** | 5 React 18 workspaces (Overview, Documents, Detail, Search, BI) | :white_check_mark: Operational | High-density dark-slate design system with live telemetry verified. |
 
 ---
@@ -138,5 +138,22 @@ Integrate fast GroqCloud LLM inference into the Question Answering / RAG pipelin
 - **Zero-Failure Fallback**: Preserved deterministic extractive synthesis fallback (`extractive_evidence_synthesis`) if Groq API keys are absent, revoked, or rate-limited.
 - **Operational Readiness**: Enriched `/api/health/readiness` with `llm_provider` status (`ready` vs `fallback_extractive`), active model name, and configuration state.
 - **Automated Tests**: Added 8 unit and integration tests in `backend/tests/test_groq_rag.py`. Total test suite passes 62/63 tests (1 live ES test skipped). Full verification documented in `docs/PHASE_4_VERIFICATION.md`.
+
+---
+
+## 9. Phase 5 Implementation: Data Quality, Multi-Hop Lineage & Power BI Semantic Models
+
+### Objective
+Establish an enterprise-grade data governance and business intelligence foundation by expanding the data quality rules engine to 11 deterministic rules with on-demand evaluation and detailed category/rule scorecards, implementing an interactive 6-hop directed lineage DAG with BFS traversal and directional filtering, verifying 7 curated analytical SQL views, and publishing a formal Power BI semantic model specification.
+
+### Execution Summary
+- **11-Rule Data Quality Engine**: Added `LINE_ITEMS_SUM_CONSISTENCY`, `INVOICE_DATE_SANITY`, and `PAYMENT_TERMS_SANITY` to `backend/app/services/quality.py`. Implemented `evaluate_all_documents(db)` and `get_detailed_scorecard(db)` delivering by-rule and by-category compliance distributions.
+- **On-Demand Quality Evaluation API**: Added `POST /api/data-platform/quality/evaluate` (all or single document) and enriched `GET /api/data-platform/quality/scorecard`.
+- **Interactive Multi-Hop Lineage Graph**: Upgraded `backend/app/services/lineage.py` to use Breadth-First Search (BFS) graph traversal with directional filtering (`document`, `upstream`, `downstream`, `all`) and rich node metadata resolution (file, document, extracted_field, fact_invoice, view, metric). Added `GET /api/lineage/summary`.
+- **Curated Analytical SQL Views & API**: Verified all 7 views (`v_daily_ingestion`, `v_processing_performance`, `v_invoice_spend_by_vendor`, `v_overdue_invoices`, `v_data_quality_scorecard`, `v_pipeline_freshness`, `v_indexing_coverage`). Added `GET /api/analytics/views` and safe whitelisted dynamic query endpoint `GET /api/analytics/views/{view_name}`.
+- **Power BI Semantic Model Specification**: Implemented `GET /api/analytics/powerbi/semantic-model` exposing complete Kimball star schema, relationship cardinalities (1:*, inactive due date), 8 production DAX measures with format strings, and DirectQuery connection parameters.
+- **Frontend Workspaces**: Upgraded `DataPlatformPage.tsx` with rule-by-rule scorecard progress bars, on-demand evaluation trigger, category summary badges, directional lineage filters, and interactive node metadata inspector. Upgraded `AnalyticsPage.tsx` with Power BI semantic model explorer, star-schema relationships card, copyable DAX measure library, and live SQL view table previewer.
+- **Automated Tests**: 17 unit and integration tests added in `backend/tests/test_data_platform_phase5.py`. Total test suite passes 79/80 tests (1 live ES test skipped). Full verification documented in `docs/PHASE_5_VERIFICATION.md`.
+
 
 

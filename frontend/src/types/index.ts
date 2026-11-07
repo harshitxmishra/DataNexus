@@ -200,6 +200,7 @@ export interface LineageNode {
   id: string;
   label: string;
   type: string;
+  metadata?: Record<string, any>;
 }
 
 export interface LineageEdge {
@@ -213,10 +214,101 @@ export interface LineageEdge {
 
 export interface LineageGraph {
   root_document_id: string;
+  root_node_id?: string;
+  root_type?: string;
+  direction?: string;
+  max_depth?: number;
   nodes_count: number;
   edges_count: number;
   nodes: LineageNode[];
   edges: LineageEdge[];
+}
+
+export interface RuleScorecardItem {
+  rule_name: string;
+  rule_category: string;
+  severity: string;
+  total_evaluations: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  pass_percentage: number;
+}
+
+export interface CategoryScorecardItem {
+  rule_category: string;
+  total_evaluations: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  pass_percentage: number;
+}
+
+export interface DetailedScorecard {
+  total_evaluations: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  pass_rate_percentage: number;
+  by_rule?: RuleScorecardItem[];
+  by_category?: CategoryScorecardItem[];
+}
+
+export interface AnalyticalViewItem {
+  view_name: string;
+  description: string;
+  domain: string;
+  columns: string[];
+  row_count: number;
+}
+
+export interface AnalyticalViewData {
+  view_name: string;
+  description: string;
+  domain: string;
+  total_rows: number;
+  returned_rows: number;
+  skip: number;
+  limit: number;
+  columns: string[];
+  data: Record<string, any>[];
+}
+
+export interface PowerBiSemanticModel {
+  dataset_name: string;
+  architecture: string;
+  recommended_connectivity_mode: string;
+  tables: Array<{
+    name: string;
+    type: string;
+    description: string;
+    primary_key: string;
+    columns: string[];
+  }>;
+  relationships: Array<{
+    from_table: string;
+    from_column: string;
+    to_table: string;
+    to_column: string;
+    cardinality: string;
+    cross_filter_direction: string;
+    is_active: boolean;
+    description: string;
+  }>;
+  dax_measures: Array<{
+    name: string;
+    display_folder: string;
+    expression: string;
+    format_string: string;
+    description: string;
+  }>;
+  curated_views: string[];
+  connection_parameters: {
+    server: string;
+    database: string;
+    schema: string;
+    authentication: string;
+  };
 }
 
 export interface SystemReadiness {

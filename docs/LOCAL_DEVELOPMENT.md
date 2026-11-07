@@ -296,7 +296,56 @@ Response includes:
 
 ---
 
-## 8. Troubleshooting Common Issues
+## 8. Data Platform, Quality Governance & Semantic Models (Phase 5)
+
+DataNexus incorporates automated data quality auditing, multi-hop lineage tracing, and curated analytical SQL views.
+
+### 8.1 Triggering On-Demand Quality Evaluations
+Run quality audits across all ingested documents or a specific document:
+```bash
+# Evaluate quality across all documents:
+curl -X POST http://127.0.0.1:8008/api/data-platform/quality/evaluate
+
+# Evaluate quality for a single document:
+curl -X POST "http://127.0.0.1:8008/api/data-platform/quality/evaluate?document_id=YOUR_DOCUMENT_ID"
+
+# Inspect detailed scorecard with by-rule and by-category breakdowns:
+curl http://127.0.0.1:8008/api/data-platform/quality/scorecard
+```
+
+### 8.2 Exploring Multi-Hop Lineage Graph
+Query lineage graphs with directional filtering (`document`, `upstream`, `downstream`, `all`):
+```bash
+# Document-isolated 6-hop lineage:
+curl "http://127.0.0.1:8008/api/lineage/document/YOUR_DOCUMENT_ID?direction=document"
+
+# Upstream source provenance trace:
+curl "http://127.0.0.1:8008/api/lineage/document/YOUR_DOCUMENT_ID?direction=upstream"
+
+# Downstream impact trace:
+curl "http://127.0.0.1:8008/api/lineage/document/YOUR_DOCUMENT_ID?direction=downstream"
+
+# Global lineage topology summary:
+curl http://127.0.0.1:8008/api/lineage/summary
+```
+
+### 8.3 Querying Curated Analytical SQL Views
+Inspect and query curated views dynamically via the API:
+```bash
+# List all 7 curated analytical SQL views with row counts:
+curl http://127.0.0.1:8008/api/analytics/views
+
+# Query paginated rows from a curated view:
+curl "http://127.0.0.1:8008/api/analytics/views/v_invoice_spend_by_vendor?skip=0&limit=10"
+curl "http://127.0.0.1:8008/api/analytics/views/v_overdue_invoices"
+
+# Retrieve complete Power BI semantic model specification:
+curl http://127.0.0.1:8008/api/analytics/powerbi/semantic-model
+```
+
+---
+
+## 9. Troubleshooting Common Issues
 
 ### Issue 1: Port 8000 or 8008 Already in Use
 - **Cause**: Another local process is bound to the target port.

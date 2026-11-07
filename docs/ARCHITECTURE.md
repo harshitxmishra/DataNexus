@@ -343,3 +343,115 @@ DataNexus separates health telemetry into two standard probes:
   - Embedding provider model name and vector dimension (384).
   - Queue broker durability and operational status.
   - LLM provider configuration status (`ready` vs `fallback_extractive`), active model name, and configuration flag.
+
+---
+
+## 8. Data Quality, Multi-Hop Lineage & Power BI Semantic Architecture (Phase 5)
+
+Phase 5 formalizes the data governance, auditability, and business intelligence foundation of DataNexus.
+
+### 8.1 11-Rule Deterministic Data Quality Governance Engine
+DataNexus executes an automated 11-rule deterministic quality audit suite upon document processing and on-demand via `POST /api/data-platform/quality/evaluate`:
+
+```mermaid
+graph TD
+    ProcessedDoc[Processed Document & Extracted Fields] --> RuleEngine[Data Quality Rules Engine]
+    
+    subgraph Rules [11 Deterministic Quality Audits]
+        RuleEngine --> R1[REQUIRED_FIELDS_COMPLETENESS - Critical]
+        RuleEngine --> R2[NON_NEGATIVE_AMOUNTS - Critical]
+        RuleEngine --> R3[SUBTOTAL_TAX_TOTAL_CONSISTENCY - High]
+        RuleEngine --> R4[FILE_HASH_UNIQUENESS - High]
+        RuleEngine --> R5[INVOICE_DATE_SANITY - High]
+        RuleEngine --> R6[VALID_CURRENCY_CODE - Medium]
+        RuleEngine --> R7[LOGICAL_DATE_SEQUENCE - Medium]
+        RuleEngine --> R8[EXTRACTION_CONFIDENCE_THRESHOLD - Medium]
+        RuleEngine --> R9[LINE_ITEMS_SUM_CONSISTENCY - Medium]
+        RuleEngine --> R10[PAYMENT_TERMS_SANITY - Low]
+        RuleEngine --> R11[SEARCH_CHUNK_COVERAGE - Low]
+    end
+    
+    Rules --> Persistence[Persisted to data_quality_results table]
+    Persistence --> ScorecardView[Curated View: v_data_quality_scorecard]
+    ScorecardView --> DetailedScorecard[Aggregated Scorecard: Overall Rate, By-Rule, By-Category]
+```
+
+#### Rule Classification & Severity Matrix:
+| Category | Rule Name | Severity | Condition / Threshold | Failure Action |
+|---|---|---|---|---|
+| **Completeness** | `REQUIRED_FIELDS_COMPLETENESS` | `critical` | Mandatory presence of `invoice_number`, `vendor_name`, `total_amount`, `invoice_date`. | Flags record as incomplete. |
+| **Accuracy** | `NON_NEGATIVE_AMOUNTS` | `critical` | Extracted `total_amount >= 0.00`. | Rejects negative financial balances. |
+| **Consistency** | `SUBTOTAL_TAX_TOTAL_CONSISTENCY` | `high` | $\lvert (\text{subtotal} + \text{tax}) - \text{total} \rvert \le 0.05$. | Flags arithmetic discrepancies. |
+| **Uniqueness** | `FILE_HASH_UNIQUENESS` | `high` | File SHA-256 hash must be unique across repository. | Flags duplicate document collisions. |
+| **Validity** | `INVOICE_DATE_SANITY` | `high` | $\text{2000-01-01} \le \text{invoice\_date} \le \text{today} + 1\text{d}$. | Flags future/anomalous dates. |
+| **Validity** | `VALID_CURRENCY_CODE` | `medium` | Currency code in standard ISO-4217 list (`USD`, `EUR`, `GBP`...). | Flags non-standard currencies. |
+| **Consistency** | `LOGICAL_DATE_SEQUENCE` | `medium` | $\text{due\_date} \ge \text{invoice\_date}$. | Flags due date preceding invoice date. |
+| **Accuracy** | `EXTRACTION_CONFIDENCE_THRESHOLD` | `medium` | Overall extraction confidence $\ge 70.0\%$. | Flags low-confidence extractions. |
+| **Consistency** | `LINE_ITEMS_SUM_CONSISTENCY` | `medium` | $\lvert \sum(\text{line\_item.amount}) - \text{subtotal} \rvert \le 0.10$. | Flags line item mismatch. |
+| **Validity** | `PAYMENT_TERMS_SANITY` | `low` | Payment terms between $0$ and $180$ days. | Flags non-standard credit terms. |
+| **Completeness** | `SEARCH_CHUNK_COVERAGE` | `low` | Generated chunks $\ge 1$. | Flags retrieval blind spots. |
+
+---
+
+### 8.2 Interactive Multi-Hop Directed Lineage Graph
+DataNexus records and traverses an explicit 6-hop directed acyclic graph (DAG) enabling end-to-end traceability from high-level BI indicators back to binary source files:
+
+```
+[Raw File on Disk] 
+      │ (storage.save_upload)
+      ▼
+[Document Entity] 
+      │ (extraction.regex / extraction.ocr)
+      ▼
+[Extracted Fields] 
+      │ (pipeline.field_normalization)
+      ▼
+[Fact Invoice (Star-Schema)] 
+      │ (sql.view_aggregation / sql.view_filter)
+      ▼
+[Curated Analytical SQL View (v_invoice_spend_by_vendor, v_overdue_invoices)] 
+      │ (bi.sum_spend, bi.sum_overdue)
+      ▼
+[BI Metric / KPI (total_spend_kpi, overdue_exposure_kpi)]
+```
+
+#### Traversal Mechanics (`LineageService`):
+1. **Document Pipeline Isolation** (`direction="document"`): Traverses precisely the upstream raw binary file and the downstream extracted fields, header fact record, curated SQL views, and BI metrics for the target document without traversing through shared views into other documents.
+2. **Upstream Provenance Trace** (`direction="upstream"`): Backward BFS discovering all parent entities up to the source PDF.
+3. **Downstream Impact Trace** (`direction="downstream"`): Forward BFS identifying all derived analytical tables, views, and metrics influenced by a node.
+4. **Rich Metadata Resolution**: Every node carries resolved attributes (file sizes, field confidence scores, invoice amounts, view descriptions, and DAX metric formulas).
+
+---
+
+### 8.3 Kimball Star Schema & Power BI Semantic Model
+DataNexus provides a complete dimensional semantic model exposed through curated SQL views, CSV streaming exports, and DirectQuery / Import parameters.
+
+#### Star-Schema Dimensional Relationships:
+```
+                +-------------------------+
+                |       dim_vendor        |
+                +-------------------------+
+                | PK: vendor_key          |
+                +-------------------------+
+                             ▲
+                             │ (1 : Many)
+                             │
++------------------+    +-------------------------+    +-------------------------+
+|     dim_date     |    |      fact_invoice       |    |    fact_invoice_line    |
++------------------+    +-------------------------+    +-------------------------+
+| PK: date_key     |◄───┤ FK: vendor_key          |◄───┤ FK: invoice_key         |
++------------------+    | FK: invoice_date_key    |    | PK: line_key            |
+                        | FK: due_date_key (inact)|    +-------------------------+
+                        | PK: invoice_key         |
+                        +-------------------------+
+```
+
+#### Curated Analytical SQL Views:
+1. `v_daily_ingestion`: Ingestion throughput, byte volume, and duplicate rates.
+2. `v_processing_performance`: OCR usage, indexing ratios, and latency distributions by file type.
+3. `v_invoice_spend_by_vendor`: Invoiced spend, subtotal, and tax grouped by vendor and currency.
+4. `v_overdue_invoices`: Real-time list of unpaid overdue invoices with aging days.
+5. `v_data_quality_scorecard`: Pass/warn/fail rates by quality rule and category.
+6. `v_pipeline_freshness`: Batch execution latency, row counts, and error rates.
+7. `v_indexing_coverage`: Percentage of completed documents indexed in the search engine.
+

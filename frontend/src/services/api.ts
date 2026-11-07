@@ -10,8 +10,12 @@ import {
   QAResponse,
   PipelineRun,
   DataQualityResult,
+  DetailedScorecard,
   LineageGraph,
-  SystemReadiness
+  SystemReadiness,
+  AnalyticalViewItem,
+  AnalyticalViewData,
+  PowerBiSemanticModel
 } from '../types';
 
 const API_BASE = '/api';
@@ -138,21 +142,41 @@ export const api = {
     return res.json();
   },
 
-  async getQualityScorecard(): Promise<{
-    total_evaluations: number;
-    passed: number;
-    failed: number;
-    warnings: number;
-    pass_rate_percentage: number;
-  }> {
+  async getQualityScorecard(): Promise<DetailedScorecard> {
     const res = await fetch(`${API_BASE}/data-platform/quality/scorecard`);
     if (!res.ok) throw new Error(`Failed to fetch scorecard: ${res.statusText}`);
     return res.json();
   },
 
-  async getDocumentLineage(documentId: string): Promise<LineageGraph> {
-    const res = await fetch(`${API_BASE}/lineage/document/${documentId}`);
+  async evaluateQuality(documentId?: string): Promise<{
+    status: string;
+    documents_evaluated: number;
+    total_rules_evaluated: number;
+    scorecard: DetailedScorecard;
+  }> {
+    const url = documentId
+      ? `${API_BASE}/data-platform/quality/evaluate?document_id=${encodeURIComponent(documentId)}`
+      : `${API_BASE}/data-platform/quality/evaluate`;
+    const res = await fetch(url, { method: 'POST' });
+    if (!res.ok) throw new Error(`Quality evaluation failed: ${res.statusText}`);
+    return res.json();
+  },
+
+  async getDocumentLineage(documentId: string, direction: string = 'document', maxDepth: number = 6): Promise<LineageGraph> {
+    const params = new URLSearchParams({ direction, max_depth: String(maxDepth) });
+    const res = await fetch(`${API_BASE}/lineage/document/${documentId}?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to fetch lineage: ${res.statusText}`);
+    return res.json();
+  },
+
+  async getLineageSummary(): Promise<{
+    total_nodes: number;
+    total_edges: number;
+    nodes_by_type: Record<string, number>;
+    edges_by_rule: Record<string, number>;
+  }> {
+    const res = await fetch(`${API_BASE}/lineage/summary`);
+    if (!res.ok) throw new Error(`Failed to fetch lineage summary: ${res.statusText}`);
     return res.json();
   },
 
@@ -165,7 +189,7 @@ export const api = {
     return res.json();
   },
 
-  // Business Intelligence
+  // Business Intelligence & Semantic Models
   async getVendorSpend(): Promise<VendorSpendItem[]> {
     const res = await fetch(`${API_BASE}/analytics/vendor-spend`);
     if (!res.ok) throw new Error(`Failed to load vendor spend: ${res.statusText}`);
@@ -196,6 +220,25 @@ export const api = {
   }> {
     const res = await fetch(`${API_BASE}/analytics/duplicate-candidates`);
     if (!res.ok) throw new Error(`Failed to load duplicates: ${res.statusText}`);
+    return res.json();
+  },
+
+  async listAnalyticalViews(): Promise<{ views: AnalyticalViewItem[] }> {
+    const res = await fetch(`${API_BASE}/analytics/views`);
+    if (!res.ok) throw new Error(`Failed to list analytical views: ${res.statusText}`);
+    return res.json();
+  },
+
+  async queryAnalyticalView(viewName: string, skip: number = 0, limit: number = 50): Promise<AnalyticalViewData> {
+    const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    const res = await fetch(`${API_BASE}/analytics/views/${viewName}?${params.toString()}`);
+    if (!res.ok) throw new Error(`Failed to query view ${viewName}: ${res.statusText}`);
+    return res.json();
+  },
+
+  async getPowerBiSemanticModel(): Promise<PowerBiSemanticModel> {
+    const res = await fetch(`${API_BASE}/analytics/powerbi/semantic-model`);
+    if (!res.ok) throw new Error(`Failed to load Power BI semantic model: ${res.statusText}`);
     return res.json();
   }
 };

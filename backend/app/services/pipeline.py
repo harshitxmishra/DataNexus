@@ -249,6 +249,24 @@ class DataPipelineService:
                 transformation_rule="bi.sum_spend"
             )
         ]
+
+        if fact.is_overdue or fact.payment_status == "Overdue":
+            edges.extend([
+                LineageEdge(
+                    source_type="fact_invoice",
+                    source_id=str(fact.invoice_key),
+                    target_type="view",
+                    target_id="v_overdue_invoices",
+                    transformation_rule="sql.view_filter"
+                ),
+                LineageEdge(
+                    source_type="view",
+                    source_id="v_overdue_invoices",
+                    target_type="metric",
+                    target_id="overdue_exposure_kpi",
+                    transformation_rule="bi.sum_overdue"
+                )
+            ])
         
         # Link extracted fields to fact
         for field_name, f_obj in fields.items():
