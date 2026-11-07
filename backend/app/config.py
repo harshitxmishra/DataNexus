@@ -41,10 +41,17 @@ class Settings(BaseSettings):
     EMBEDDING_CACHE_DIR: str = ""
     EMBEDDING_REPRESENTATION_VERSION: int = 2
     
-    # LLM
+    # LLM & RAG Synthesis (GroqCloud / Gemini / Extractive Fallback)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
+    GROQ_FALLBACK_MODELS: str = "llama-3.3-70b-versatile,llama-3.1-8b-instant,openai/gpt-oss-120b,openai/gpt-oss-20b"
+    GROQ_TEMPERATURE: float = 0.1
+    GROQ_MAX_TOKENS: int = 800
+    GROQ_TIMEOUT_SECONDS: float = 15.0
+    
     GEMINI_API_KEY: str = ""
-    LLM_PROVIDER: str = "gemini"
-    LLM_MODEL: str = "gemini-1.5-flash"
+    LLM_PROVIDER: str = "groq"
+    LLM_MODEL: str = "qwen/qwen3.8-27b"
     
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"

@@ -26,7 +26,9 @@ def readiness(db: Session = Depends(get_db)):
     except Exception:
         embedding_ready = False
 
-    llm_configured = bool(settings.GEMINI_API_KEY)
+    from backend.app.services.groq_service import groq_rag_service
+    llm_configured = bool(settings.GROQ_API_KEY) or bool(settings.GEMINI_API_KEY)
+    llm_status = "ready" if (groq_rag_service.is_available() or bool(settings.GEMINI_API_KEY)) else "fallback_extractive"
 
     all_ready = db_status.get("status") == "healthy" and embedding_ready
 
@@ -52,6 +54,7 @@ def readiness(db: Session = Depends(get_db)):
         "llm_provider": {
             "provider": settings.LLM_PROVIDER,
             "configured": llm_configured,
-            "model": settings.LLM_MODEL
+            "status": llm_status,
+            "model": settings.GROQ_MODEL if settings.LLM_PROVIDER == "groq" else settings.LLM_MODEL
         }
     }

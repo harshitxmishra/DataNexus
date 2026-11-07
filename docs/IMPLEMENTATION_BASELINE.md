@@ -38,7 +38,7 @@ This document establishes the verified, factual starting point for the long-term
 | **Queue / Background Jobs** | Database-backed durable queue (`queue_jobs` table) in `queue.py` | :white_check_mark: Operational | Idempotent lifecycle execution verified. Redis is optional future enhancement. |
 | **Search Engine** | Dual-provider router: `ElasticsearchProvider` + `LocalSearchProvider` | :white_check_mark: Operational (Fallback) | Elasticsearch is offline; local cosine similarity & token matching works cleanly. Real ES validation needed in Phase 2. |
 | **Embedding Generation** | Pretrained neural Transformer (`sentence-transformers/all-MiniLM-L6-v2`, 384-d) | :white_check_mark: Operational (Pretrained MiniLM) | Real pretrained weights loaded in CPU inference; representation versioning (v2) and idempotent re-embedding verified (Phase 3). |
-| **Question Answering (RAG)** | Evidence-gated RAG with citation validation & insufficiency detection | :white_check_mark: Operational (Local) | Currently uses rule-based evidence synthesis when API keys are unconfigured. Groq integration needed in Phase 4. |
+| **Question Answering (RAG)** | Fast GroqCloud LLM inference with negative gating, verifiable citations, multi-model fallback, and local extractive fallback | :white_check_mark: Operational (GroqCloud RAG) | Fully operational via `GroqRAGService` (`qwen/qwen3.8-27b`), negative question refusal, inline citation mapping, and multi-model fallback (Phase 4). |
 | **Dimensional Modeling & ETL** | Idempotent dimensional star schema (`dim_vendor`, `dim_date`, `fact_invoice`...) | :white_check_mark: Operational | Verified with 6 seeded invoices and incremental upsert logic. |
 | **Data Quality Rules** | Deterministic rules engine (8 rules) auditing completeness, balance, dates | :white_check_mark: Operational | Verified with pass/warn/fail scorecard reporting. |
 | **Lineage Graph (DAG)** | Multi-hop lineage recording: file -> document -> field -> fact -> view -> metric | :white_check_mark: Operational | Interactive lineage graph API verified. |
@@ -122,4 +122,21 @@ Replace the interim lexical hashing and projection vector representation with a 
 - **Decoupled Search Resilience**: Decoupled BM25 lexical search from vector inference so lexical search remains 100% operational during neural model cold starts or outages.
 - **Retrieval Benchmark**: Developed 10-query benchmark (`backend/app/evaluation/retrieval_eval.py`). MiniLM v2 achieved Recall@3 = 1.000 and MRR = 0.944 (vs 0.753 for interim hashing).
 - **Automated Tests**: 13 tests added in `backend/tests/test_neural_embeddings.py`; full suite passes 54/55 tests (1 live ES check cleanly skipped). Full verification documented in `docs/PHASE_3_VERIFICATION.md`.
+
+---
+
+## 8. Phase 4 Implementation: GroqCloud LLM Integration & Production-Minded RAG
+
+### Objective
+Integrate fast GroqCloud LLM inference into the Question Answering / RAG pipeline, enforcing strict factual grounding, verifiable source citations, negative evidence gating (`evidence_status: "insufficient"`), multi-model fallback, resilient local extractive synthesis, and comprehensive regression test suites.
+
+### Execution Summary
+- **Groq Cloud Service**: Implemented `GroqRAGService` in `backend/app/services/groq_service.py` with thread-safe lazy client initialization, candidate model fallback loop, latency tracking, and token usage accounting.
+- **Model Selection & Availability**: Evaluated active Groq models; selected `qwen/qwen3.8-27b` as primary for sub-2.5s generation without reasoning token exhaustion, with `llama-3.3-70b-versatile,llama-3.1-8b-instant,openai/gpt-oss-120b,openai/gpt-oss-20b` configured as resilient fallbacks.
+- **Strict Factual Grounding**: Engineered system prompt enforcing strict context-only constraints, `[Source N]` tags, and exact `INSUFFICIENT_EVIDENCE:` directive on missing facts.
+- **Citation Mapping**: Parsed `[Source N]` tags into structured `Citation` domain objects linking to canonical document IDs, filenames, page numbers, and snippet excerpts.
+- **Zero-Failure Fallback**: Preserved deterministic extractive synthesis fallback (`extractive_evidence_synthesis`) if Groq API keys are absent, revoked, or rate-limited.
+- **Operational Readiness**: Enriched `/api/health/readiness` with `llm_provider` status (`ready` vs `fallback_extractive`), active model name, and configuration state.
+- **Automated Tests**: Added 8 unit and integration tests in `backend/tests/test_groq_rag.py`. Total test suite passes 62/63 tests (1 live ES test skipped). Full verification documented in `docs/PHASE_4_VERIFICATION.md`.
+
 

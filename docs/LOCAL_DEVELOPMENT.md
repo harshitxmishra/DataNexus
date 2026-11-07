@@ -241,7 +241,62 @@ python -m backend.app.evaluation.retrieval_eval
 
 ---
 
-## 7. Troubleshooting Common Issues
+## 7. GroqCloud LLM Integration & Grounded Question Answering (Phase 4)
+
+DataNexus incorporates high-speed GroqCloud LLM inference for grounded Question Answering / RAG with negative question gating and verifiable citations.
+
+### 7.1 Configuration Options
+Configure GroqCloud credentials and inference settings in `.env`:
+```env
+# LLM Provider Configuration
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_your_groq_api_key_here
+GROQ_MODEL=qwen/qwen3.8-27b
+GROQ_FALLBACK_MODELS=llama-3.3-70b-versatile,llama-3.1-8b-instant,openai/gpt-oss-120b,openai/gpt-oss-20b
+GROQ_TEMPERATURE=0.1
+GROQ_MAX_TOKENS=800
+GROQ_TIMEOUT_SECONDS=15.0
+```
+
+> **Note**: If `GROQ_API_KEY` is omitted or unset, DataNexus automatically falls back to deterministic local extractive synthesis without service degradation or errors.
+
+### 7.2 Testing Question Answering via cURL / HTTP
+Execute a grounded QA query against the active backend server:
+```bash
+# Query with sufficient evidence in seeded invoices:
+curl -X POST http://127.0.0.1:8008/api/search/qa \
+  -H "Content-Type: application/json" \
+  -d "{\"question\": \"What is the total amount due for invoice INV-2024-001?\"}"
+
+# Query with negative/insufficient evidence:
+curl -X POST http://127.0.0.1:8008/api/search/qa \
+  -H "Content-Type: application/json" \
+  -d "{\"question\": \"What is the company vacation and sick leave policy?\"}"
+```
+
+### 7.3 Checking LLM Readiness Probe
+Verify LLM provider status via the readiness endpoint:
+```bash
+curl http://127.0.0.1:8008/api/health/readiness
+```
+Response includes:
+```json
+{
+  "status": "ready",
+  "checks": {
+    "llm_provider": {
+      "status": "ready",
+      "provider": "groq",
+      "configured": true,
+      "model": "qwen/qwen3.8-27b"
+    }
+  }
+}
+```
+
+---
+
+## 8. Troubleshooting Common Issues
 
 ### Issue 1: Port 8000 or 8008 Already in Use
 - **Cause**: Another local process is bound to the target port.

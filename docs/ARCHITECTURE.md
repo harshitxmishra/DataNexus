@@ -271,14 +271,65 @@ Upgrading existing documents to the current neural representation is handled thr
 
 ---
 
-## 6. Question Answering & Traceable RAG
+## 6. Question Answering & Traceable RAG (Phase 4)
 
-The Retrieval-Augmented Generation (RAG) pipeline guarantees evidence provenance:
+The Retrieval-Augmented Generation (RAG) pipeline guarantees verifiable evidence provenance and strict factual grounding:
 
-1. **Retrieval**: Top-$k$ chunks fetched using hybrid retrieval.
-2. **Relevance Gating**: If retrieval scores fall below the minimum relevance threshold, the engine immediately responds with `evidence_status: "insufficient"` rather than hallucinating facts.
-3. **Citation Extraction**: When valid evidence exists, answers cite the exact document filename, document ID, and page number.
-4. **Transparency**: The response contains the exact chunk excerpts and similarity scores utilized.
+```mermaid
+graph TD
+    UserQuery[User Question] --> Retrieve[Hybrid Retrieval: BM25 + Pretrained MiniLM RRF]
+    Retrieve --> ChunkRerank[Top-K Candidate Chunks]
+    ChunkRerank --> ContextFormatter[Structured Context Builder with Source N Anchors]
+    
+    ContextFormatter --> LLMRouter{LLM Provider Router}
+    LLMRouter -->|Groq API Key Configured| GroqService[GroqCloud Fast Inference Engine]
+    LLMRouter -->|Gemini Key Configured| GeminiService[Gemini API Inference]
+    LLMRouter -->|Keys Absent or Network Down| LocalExtractive[Deterministic Extractive Synthesis]
+    
+    subgraph GroqService
+        PrimaryModel[qwen/qwen3.8-27b] -->|Fallback Loop on Error| FallbackModel[llama-3.3-70b / gpt-oss-120b]
+    end
+    
+    GroqService --> ResponseParser[Evidence Gating & Citation Validator]
+    GeminiService --> ResponseParser
+    LocalExtractive --> ResponseParser
+    
+    ResponseParser -->|Contains INSUFFICIENT_EVIDENCE| InsufficientStatus[evidence_status: insufficient]
+    ResponseParser -->|Grounded Answer with Sources| SufficientStatus[evidence_status: sufficient + Citation Objects]
+    
+    InsufficientStatus --> ClientResponse[JSON API Response with Latency & Source Provenance]
+    SufficientStatus --> ClientResponse
+```
+
+### 6.1 GroqCloud LLM Integration (`GroqRAGService`)
+DataNexus leverages GroqCloud's LPU inference for high-speed, sub-second generative answer synthesis:
+- **Primary Model**: `qwen/qwen3.8-27b` (high-accuracy instruction following, deterministic response generation without reasoning token overhead).
+- **Multi-Model Fallback Sequence**: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `openai/gpt-oss-120b`, `openai/gpt-oss-20b`. If the primary model encounters a quota limit, deprecation, or tier mismatch, the fallback loop attempts candidate models sequentially.
+- **Client Architecture**: Lazy singleton `Groq` client initialized thread-safely on first request, avoiding overhead during startup or test suites.
+
+### 6.2 Strict Factual Grounding & Prompt Directives
+The system prompt enforces strict constraints to eliminate generative hallucinations:
+1. **Context-Only Answering**: The model may answer strictly based on the numbered context blocks (`--- Document Chunk [Source N] ---`).
+2. **Negative Evidence Gating**: If the provided sources do not contain sufficient facts to answer the question completely and accurately, the model is strictly mandated to begin its answer with:
+   ```
+   INSUFFICIENT_EVIDENCE: <explanation of what information is missing>
+   ```
+3. **Mandatory Inline Citations**: Every factual assertion must be attributed using `[Source N]` notation matching the retrieved context chunk index.
+4. **Low Temperature**: Configured at `temperature=0.1` for maximum factual fidelity and deterministic output.
+
+### 6.3 Verifiable Citation Mapping
+Answers returned by the RAG service parse and map `[Source N]` tags into structured `Citation` domain objects:
+- `document_id`: Canonical database ID of the referenced document.
+- `document_filename`: Original filename of the supporting document.
+- `page_number`: Exact page number containing the supporting text.
+- `chunk_id`: Database chunk primary key.
+- `snippet`: Extracted text snippet showing the exact supporting evidence.
+
+### 6.4 Resilient Extractive Fallback
+If external LLM inference is disabled, unconfigured, or unreachable (e.g., air-gapped environments or complete network failure), DataNexus gracefully degrades to `extractive_evidence_synthesis`:
+- Extracts top sentence spans matching query terms from retrieved chunks.
+- Preserves all citation metadata, filenames, and page numbers.
+- Never raises an unhandled HTTP 500 error or returns an empty payload.
 
 ---
 
@@ -291,4 +342,4 @@ DataNexus separates health telemetry into two standard probes:
   - Elasticsearch connection status and fallback indicator.
   - Embedding provider model name and vector dimension (384).
   - Queue broker durability and operational status.
-  - LLM provider configuration status.
+  - LLM provider configuration status (`ready` vs `fallback_extractive`), active model name, and configuration flag.

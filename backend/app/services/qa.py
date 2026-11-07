@@ -1,10 +1,14 @@
 import time
 import json
 import re
+import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.services.search import search_service
+from backend.app.services.groq_service import groq_rag_service
+
+logger = logging.getLogger(__name__)
 
 class Citation:
     def __init__(self, document_id: str, filename: str, page_number: int, snippet: str, chunk_id: str):
@@ -75,8 +79,30 @@ class DocumentQAService:
         combined_context = "\n\n".join(context_blocks)
 
         # 4. Synthesize Answer
-        # If Gemini API key is configured, use Gemini
-        if settings.GEMINI_API_KEY:
+        # Priority 1: GroqCloud LLM (Ultra-low latency, strict citation grounding)
+        if groq_rag_service.is_available() and getattr(settings, "LLM_PROVIDER", "groq") in ["groq", "auto", "default"]:
+            try:
+                groq_result = groq_rag_service.generate_rag_answer(
+                    question=question,
+                    context_chunks=hits
+                )
+                if groq_result.get("success"):
+                    duration_ms = int((time.perf_counter() - start_time) * 1000)
+                    return {
+                        "question": question,
+                        "answer": groq_result["answer"],
+                        "evidence_status": groq_result["evidence_status"],
+                        "citations": citations if groq_result["evidence_status"] == "sufficient" else [],
+                        "provider_used": f"groq ({groq_result['model_used']})",
+                        "latency_ms": duration_ms
+                    }
+                else:
+                    logger.warning(f"Groq RAG failed, proceeding to fallback: {groq_result.get('error')}")
+            except Exception as e:
+                logger.warning(f"Groq RAG exception: {e}")
+
+        # Priority 2: Gemini API (if configured and Groq unavailable)
+        if getattr(settings, "GEMINI_API_KEY", ""):
             try:
                 import httpx
                 gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.LLM_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
