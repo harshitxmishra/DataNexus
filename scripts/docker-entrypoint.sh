@@ -59,3 +59,4 @@ EOF
 
 echo "Starting Uvicorn server on 0.0.0.0:8008..."
 exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8008 --workers 2
+

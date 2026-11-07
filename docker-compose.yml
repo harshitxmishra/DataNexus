@@ -102,3 +102,4 @@ volumes:
 networks:
   datanexus_net:
     driver: bridge
+

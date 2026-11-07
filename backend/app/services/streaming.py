@@ -116,3 +116,4 @@ class PipelineEventBroadcaster:
 
 # Global singleton
 event_broadcaster = PipelineEventBroadcaster()
+
