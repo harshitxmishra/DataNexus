@@ -345,7 +345,48 @@ curl http://127.0.0.1:8008/api/analytics/powerbi/semantic-model
 
 ---
 
-## 9. Troubleshooting Common Issues
+## 9. Production Docker Compose & Real-Time Streaming (Phase 6)
+
+### 9.1 Launching the Full Container Stack
+Deploy PostgreSQL 16, Elasticsearch 8.11, FastAPI backend, and Nginx/React frontend with a single command:
+
+```bash
+# Build and start all services in detached mode
+docker-compose up --build -d
+
+# Check service health
+docker-compose ps
+
+# Stream logs from backend or frontend
+docker-compose logs -f backend
+```
+
+- **Frontend Application**: `http://localhost` (or `http://localhost:80`)
+- **Backend API Docs**: `http://localhost:8008/docs`
+- **PostgreSQL**: `localhost:5432` (`postgres` / `postgres`)
+- **Elasticsearch**: `http://localhost:9200`
+
+### 9.2 Listening to Real-Time SSE Streams
+```bash
+# Stream live stage progression for a specific document
+curl -N -H "Accept: text/event-stream" http://127.0.0.1:8008/api/documents/YOUR_DOCUMENT_ID/events/stream
+
+# Stream platform-wide pipeline events
+curl -N -H "Accept: text/event-stream" http://127.0.0.1:8008/api/documents/events/stream
+```
+
+### 9.3 Generating Power BI M-Queries & Automation Scripts
+```bash
+# Fetch generated M queries for all star schema tables:
+curl http://127.0.0.1:8008/api/analytics/powerbi/m-queries
+
+# Download combined Power Query (.pq) automation template:
+curl -O -J http://127.0.0.1:8008/api/analytics/powerbi/export-script
+```
+
+---
+
+## 10. Troubleshooting Common Issues
 
 ### Issue 1: Port 8000 or 8008 Already in Use
 - **Cause**: Another local process is bound to the target port.

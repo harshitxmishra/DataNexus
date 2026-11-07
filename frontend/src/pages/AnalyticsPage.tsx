@@ -35,6 +35,7 @@ import {
   PowerBiSemanticModel,
   AnalyticalViewItem,
   AnalyticalViewData,
+  PowerBiMQueriesResponse,
 } from '../types';
 
 export const AnalyticsPage: React.FC = () => {
@@ -43,6 +44,9 @@ export const AnalyticsPage: React.FC = () => {
   const [spendTrends, setSpendTrends] = useState<SpendTrendItem[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [semanticModel, setSemanticModel] = useState<PowerBiSemanticModel | null>(null);
+  const [mQueries, setMQueries] = useState<PowerBiMQueriesResponse | null>(null);
+  const [selectedMTable, setSelectedMTable] = useState<string>('fact_invoice');
+  const [copiedM, setCopiedM] = useState(false);
   const [analyticalViews, setAnalyticalViews] = useState<AnalyticalViewItem[]>([]);
   const [selectedView, setSelectedView] = useState<string>('v_invoice_spend_by_vendor');
   const [viewPreviewData, setViewPreviewData] = useState<AnalyticalViewData | null>(null);
@@ -57,13 +61,14 @@ export const AnalyticsPage: React.FC = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [vs, oi, st, dup, sm, av] = await Promise.all([
+        const [vs, oi, st, dup, sm, av, mq] = await Promise.all([
           api.getVendorSpend(),
           api.getOverdueInvoices(),
           api.getSpendTrends(),
           api.getDuplicateCandidates(),
           api.getPowerBiSemanticModel(),
           api.listAnalyticalViews(),
+          api.getPowerBiMQueries(),
         ]);
         setVendorSpend(vs);
         setOverdueInvoices(oi);
@@ -71,6 +76,7 @@ export const AnalyticsPage: React.FC = () => {
         setDuplicates(dup.candidates || []);
         setSemanticModel(sm);
         setAnalyticalViews(av.views || []);
+        setMQueries(mq);
 
         if (av.views && av.views.length > 0) {
           const defaultView = av.views[0].view_name;
@@ -114,6 +120,12 @@ export const AnalyticsPage: React.FC = () => {
     navigator.clipboard.writeText(expr);
     setCopiedMeasure(measureName);
     setTimeout(() => setCopiedMeasure(null), 2000);
+  };
+
+  const handleCopyMQuery = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedM(true);
+    setTimeout(() => setCopiedM(false), 2000);
   };
 
   return (
@@ -465,13 +477,22 @@ export const AnalyticsPage: React.FC = () => {
                 {semanticModel.architecture} • Native DirectQuery & Import Mode Supported
               </p>
             </div>
-            <button
-              onClick={handleCopyConnection}
-              className="flex items-center space-x-2 px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-500 text-white transition text-xs font-semibold self-start sm:self-auto"
-            >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied Parameters' : 'Copy Connection String'}</span>
-            </button>
+            <div className="flex items-center space-x-2 self-start sm:self-auto">
+              <button
+                onClick={() => window.open(api.getExportPowerBiScriptUrl(), '_blank')}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white transition text-xs font-semibold"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export .PQ Script</span>
+              </button>
+              <button
+                onClick={handleCopyConnection}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-brand-600 hover:bg-brand-500 text-white transition text-xs font-semibold"
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied Parameters' : 'Copy Connection String'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Connection Parameters Cards */}
@@ -563,6 +584,77 @@ export const AnalyticsPage: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Power Query (M) Generator Card */}
+          {mQueries && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 uppercase text-[11px] font-bold">
+                  Automated Power Query (M) Code Generator ({mQueries.database_engine.toUpperCase()})
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-400">
+                  {mQueries.is_directquery_supported ? 'DirectQuery Mode' : 'Import Mode (ODBC)'}
+                </span>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-lg border border-slate-850 space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-slate-400 text-xs">Select Target Entity:</span>
+                  <select
+                    value={selectedMTable}
+                    onChange={(e) => setSelectedMTable(e.target.value)}
+                    className="bg-slate-900 border border-slate-750 text-white rounded px-2.5 py-1 text-xs focus:outline-none focus:border-brand-500"
+                  >
+                    <optgroup label="Star Schema Dimensional Tables">
+                      {Object.entries(mQueries.star_schema_tables).map(([tbl, meta]) => (
+                        <option key={tbl} value={tbl}>
+                          {tbl} ({meta.label})
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Curated Analytical Views">
+                      {Object.entries(mQueries.curated_views).map(([viewName, meta]) => (
+                        <option key={viewName} value={viewName}>
+                          {viewName} ({meta.label})
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      const item =
+                        mQueries.star_schema_tables[selectedMTable] ||
+                        mQueries.curated_views[selectedMTable];
+                      if (item) handleCopyMQuery(item.m_query);
+                    }}
+                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-200 text-xs transition ml-auto"
+                  >
+                    {copiedM ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedM ? 'Copied M Code' : 'Copy M Formula'}</span>
+                  </button>
+                </div>
+
+                {(() => {
+                  const item =
+                    mQueries.star_schema_tables[selectedMTable] ||
+                    mQueries.curated_views[selectedMTable];
+                  if (!item) return null;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Label: <strong className="text-slate-200">{item.label}</strong> ({item.type})</span>
+                        <span>Mode: <strong className="text-emerald-400">{item.mode}</strong></span>
+                      </div>
+                      <pre className="text-[11px] text-emerald-300 font-mono bg-slate-900/90 p-3 rounded-lg border border-slate-800 overflow-x-auto leading-relaxed">
+                        {item.m_query}
+                      </pre>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

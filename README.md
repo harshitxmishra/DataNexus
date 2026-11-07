@@ -133,16 +133,19 @@ sequenceDiagram
 
 ## 6. Technology Stack & Current Status
 
-| Layer | Implemented Baseline | Planned Next Iteration |
+| Layer | Implemented Capabilities | Operational Status |
 |---|---|---|
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Recharts, Lucide Icons | Virtualized PDF Canvas with visual bounding boxes (`pdfjs-dist`) |
-| **Backend API** | Python 3.13, FastAPI, Pydantic v2, Uvicorn | Server-Sent Events (SSE) streaming updates |
-| **Relational Store** | SQLite 3 (zero-dependency local development mode) | Managed PostgreSQL 16 container deployment |
-| **Search Engine** | Embedded Local RRF Provider (384-d Cosine Similarity + BM25) | Distributed Elasticsearch cluster on port 9200 |
-| **Embeddings** | Deterministic 384-d $L_2$-normalized dense embeddings | Transformer embeddings via Sentence-Transformers / HuggingFace |
-| **RAG / AI** | Evidence-gated RAG with citation validation | GroqCloud API / Gemini 1.5 Flash live inference |
-| **Queue** | Durable database-backed queue (`queue_jobs`) | Distributed Redis + Celery worker pool |
-| **BI Integration** | 7 Curated SQL views + Power BI connection specification | Automated `.pbix` template generator |
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Recharts, Real-Time SSE | :white_check_mark: Production Built (0 errors) |
+| **Backend API** | Python 3.13, FastAPI, Pydantic v2, Uvicorn, Asynchronous Broadcaster | :white_check_mark: Operational |
+| **Relational Store** | PostgreSQL 16 connection pooling + Zero-dependency SQLite dual mode | :white_check_mark: Verified Dual Dialect |
+| **Migrations** | Alembic versioned migrations (`alembic upgrade head`) + offline DDL | :white_check_mark: Operational |
+| **Search Engine** | Elasticsearch 8.11 BM25 + kNN + RRF with resilient Local fallback | :white_check_mark: Operational |
+| **Embeddings** | Pretrained neural Transformer (`sentence-transformers/all-MiniLM-L6-v2`) | :white_check_mark: Operational (384-d) |
+| **RAG / AI** | GroqCloud fast LLM inference (`qwen3.8-27b`) with citations & refusal gating | :white_check_mark: Operational (GroqCloud + Fallback) |
+| **Data Quality** | 11 Deterministic rules, on-demand evaluation, category scorecards | :white_check_mark: Operational |
+| **Lineage DAG** | 6-Hop BFS directed lineage graph (`file` -> `field` -> `fact` -> `view` -> `KPI`) | :white_check_mark: Operational |
+| **BI Integration** | 7 Curated SQL views, Kimball star schema, M-query generator, `.pq` export | :white_check_mark: DirectQuery & ODBC |
+| **Containerization** | Multi-container Docker Compose (PostgreSQL 16, Elasticsearch, Backend, Nginx) | :white_check_mark: Production Ready |
 
 ---
 

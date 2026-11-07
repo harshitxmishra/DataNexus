@@ -15,7 +15,8 @@ import {
   SystemReadiness,
   AnalyticalViewItem,
   AnalyticalViewData,
-  PowerBiSemanticModel
+  PowerBiSemanticModel,
+  PowerBiMQueriesResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -240,5 +241,74 @@ export const api = {
     const res = await fetch(`${API_BASE}/analytics/powerbi/semantic-model`);
     if (!res.ok) throw new Error(`Failed to load Power BI semantic model: ${res.statusText}`);
     return res.json();
+  },
+
+  async getPowerBiMQueries(): Promise<PowerBiMQueriesResponse> {
+    const res = await fetch(`${API_BASE}/analytics/powerbi/m-queries`);
+    if (!res.ok) throw new Error(`Failed to load Power BI M queries: ${res.statusText}`);
+    return res.json();
+  },
+
+  getExportPowerBiScriptUrl(): string {
+    return `${API_BASE}/analytics/powerbi/export-script`;
+  },
+
+  // Real-Time Server-Sent Events (SSE) Streaming
+  subscribeDocumentEvents(
+    documentId: string,
+    onEvent: (event: { type: string; data: any }) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const es = new EventSource(`${API_BASE}/documents/${documentId}/events/stream`);
+
+    const handleMessage = (type: string) => (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent({ type, data });
+      } catch (err) {
+        console.error(`Failed to parse SSE event (${type}):`, err);
+      }
+    };
+
+    es.addEventListener('snapshot', handleMessage('snapshot'));
+    es.addEventListener('stage_event', handleMessage('stage_event'));
+    es.addEventListener('pipeline_completed', handleMessage('pipeline_completed'));
+    es.addEventListener('pipeline_failed', handleMessage('pipeline_failed'));
+
+    es.onerror = (err) => {
+      if (onError) onError(err);
+    };
+
+    return () => {
+      es.close();
+    };
+  },
+
+  subscribePipelineEvents(
+    onEvent: (event: { type: string; data: any }) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const es = new EventSource(`${API_BASE}/documents/events/stream`);
+
+    const handleMessage = (type: string) => (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent({ type, data });
+      } catch (err) {
+        console.error(`Failed to parse global SSE event (${type}):`, err);
+      }
+    };
+
+    es.addEventListener('stage_event', handleMessage('stage_event'));
+    es.addEventListener('pipeline_completed', handleMessage('pipeline_completed'));
+    es.addEventListener('pipeline_failed', handleMessage('pipeline_failed'));
+
+    es.onerror = (err) => {
+      if (onError) onError(err);
+    };
+
+    return () => {
+      es.close();
+    };
   }
 };

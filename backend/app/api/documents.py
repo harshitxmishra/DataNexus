@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from backend.app.database import get_db
@@ -10,6 +10,7 @@ from backend.app.schemas.document import DocumentListItem, DocumentDetail
 from backend.app.services.storage import storage_service
 from backend.app.services.queue import queue_service
 from backend.app.services.search import search_service
+from backend.app.services.streaming import event_broadcaster
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -83,6 +84,21 @@ def list_documents(
     docs = query.order_by(desc(Document.created_at)).offset(skip).limit(limit).all()
     return docs
 
+@router.get("/events/stream")
+async def stream_all_pipeline_events():
+    """
+    Server-Sent Events (SSE) endpoint streaming real-time pipeline events across all documents.
+    """
+    return StreamingResponse(
+        event_broadcaster.stream_events(channel="global", ping_interval_seconds=15),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
 @router.get("/{document_id}", response_model=DocumentDetail)
 def get_document(document_id: str, db: Session = Depends(get_db)):
     """Retrieve complete document detail with page text, extracted fields, chunks, and stage history."""
@@ -90,6 +106,42 @@ def get_document(document_id: str, db: Session = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     return doc
+
+@router.get("/{document_id}/events/stream")
+async def stream_document_events(document_id: str, db: Session = Depends(get_db)):
+    """
+    Server-Sent Events (SSE) endpoint streaming real-time stage progression events for a specific document.
+    Emits an initial snapshot of completed historical stage events, followed by live events as stages execute.
+    """
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    initial_events = [
+        {
+            "document_id": st.document_id,
+            "stage": st.stage,
+            "status": st.status,
+            "duration_ms": st.duration_ms,
+            "details": st.details,
+            "timestamp": st.created_at.isoformat() + "Z" if st.created_at else None
+        }
+        for st in doc.stage_events
+    ]
+
+    return StreamingResponse(
+        event_broadcaster.stream_events(
+            channel=f"doc:{document_id}",
+            initial_events=initial_events,
+            ping_interval_seconds=15
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @router.get("/{document_id}/download")
 def download_document(document_id: str, db: Session = Depends(get_db)):

@@ -1,0 +1,104 @@
+# ============================================================
+# DataNexus Production Docker Compose Orchestration
+# ============================================================
+
+version: '3.8'
+
+services:
+  # 1. Primary PostgreSQL 16 Relational Store
+  postgres:
+    image: postgres:16-alpine
+    container_name: datanexus_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-datanexus}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-datanexus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - datanexus_net
+
+  # 2. Elasticsearch 8.11 Cluster
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: datanexus_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+    networks:
+      - datanexus_net
+
+  # 3. FastAPI Modular Monolith Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: datanexus_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-datanexus}
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_INDEX=datanexus_chunks
+      - SEARCH_PROVIDER=auto
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_PRIMARY_MODEL=${GROQ_PRIMARY_MODEL:-qwen/qwen3.8-27b}
+      - GROQ_FALLBACK_MODELS=${GROQ_FALLBACK_MODELS:-llama-3.3-70b-versatile,llama-3.1-8b-instant}
+    ports:
+      - "8008:8008"
+    volumes:
+      - storage_data:/app/data/storage
+    networks:
+      - datanexus_net
+
+  # 4. React 18 / Vite Frontend with Nginx Reverse Proxy
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: datanexus_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - datanexus_net
+
+volumes:
+  postgres_data:
+    driver: local
+  es_data:
+    driver: local
+  storage_data:
+    driver: local
+
+networks:
+  datanexus_net:
+    driver: bridge

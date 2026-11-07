@@ -1,0 +1,41 @@
+# ============================================================
+# DataNexus Backend — Multi-Stage Production Dockerfile
+# ============================================================
+FROM python:3.13-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --upgrade pip && \
+    pip install -r /app/backend/requirements.txt
+
+# Copy application codebase
+COPY backend/ /app/backend/
+COPY scripts/ /app/scripts/
+COPY data/storage/ /app/data/storage/
+COPY alembic.ini /app/alembic.ini
+
+# Ensure entrypoint is executable
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
+# Expose FastAPI port
+EXPOSE 8008
+
+# Healthcheck probe
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8008/api/health/liveness || exit 1
+
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]

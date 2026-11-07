@@ -10,6 +10,7 @@ from backend.app.services.embeddings import embedding_service
 from backend.app.services.search import search_service
 from backend.app.services.pipeline import pipeline_service
 from backend.app.services.quality import quality_service
+from backend.app.services.streaming import event_broadcaster
 
 class ProcessingQueueService:
     def enqueue_document_processing(self, document_id: str, db: Session) -> QueueJob:
@@ -221,6 +222,21 @@ class ProcessingQueueService:
                 fact_proc.final_status = doc.status
 
             db.commit()
+
+            # Broadcast pipeline completion event
+            event_broadcaster.emit_sync(
+                event_type="pipeline_completed",
+                data={
+                    "document_id": doc.id,
+                    "status": doc.status,
+                    "processing_time_ms": total_duration_ms,
+                    "page_count": doc.page_count,
+                    "chunk_count": doc.chunk_count,
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                },
+                channel=f"doc:{doc.id}"
+            )
+
             return doc
 
         except Exception as e:
@@ -250,19 +266,48 @@ class ProcessingQueueService:
                     fact_proc.final_status = "failed"
                     fact_proc.processing_time_ms = total_duration_ms
                 db.commit()
+
+                # Broadcast pipeline failure event
+                event_broadcaster.emit_sync(
+                    event_type="pipeline_failed",
+                    data={
+                        "document_id": doc.id,
+                        "status": "failed",
+                        "error_message": str(e),
+                        "processing_time_ms": total_duration_ms,
+                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                    },
+                    channel=f"doc:{doc.id}"
+                )
+
             raise e
 
     def _record_stage(self, doc_id: str, stage: str, status: str, duration_ms: int, details: str, db: Session):
+        now_dt = datetime.utcnow()
         stage_event = DocumentStageEvent(
             document_id=doc_id,
             stage=stage,
             status=status,
-            start_time=datetime.utcnow(),
-            end_time=datetime.utcnow(),
+            start_time=now_dt,
+            end_time=now_dt,
             duration_ms=duration_ms,
             details=details
         )
         db.add(stage_event)
         db.flush()
+
+        # Emit real-time stage event
+        event_broadcaster.emit_sync(
+            event_type="stage_event",
+            data={
+                "document_id": doc_id,
+                "stage": stage,
+                "status": status,
+                "duration_ms": duration_ms,
+                "details": details,
+                "timestamp": now_dt.isoformat() + "Z"
+            },
+            channel=f"doc:{doc_id}"
+        )
 
 queue_service = ProcessingQueueService()

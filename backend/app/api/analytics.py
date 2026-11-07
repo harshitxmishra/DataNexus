@@ -1,8 +1,9 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case, text
-from backend.app.database import get_db
+from backend.app.database import get_db, engine
 from backend.app.models.document import Document, DocumentChunk
 from backend.app.models.data_platform import PipelineRun, DataQualityResult
 from backend.app.models.analytics import (
@@ -458,3 +459,142 @@ def get_powerbi_semantic_model():
             "authentication": "Database Credentials"
         }
     }
+
+@router.get("/powerbi/m-queries")
+def get_powerbi_m_queries():
+    """
+    Generate dynamic Power Query (M) code and DAX measures tailored to the active database dialect
+    (PostgreSQL DirectQuery or SQLite ODBC) for instant Power BI model creation.
+    """
+    dialect = engine.dialect.name
+    is_postgres = (dialect == "postgresql")
+    server = "localhost:5432"
+    database = "datanexus"
+
+    star_schema_tables = [
+        ("dim_vendor", "Vendor Dimension", ["vendor_key", "vendor_name", "vendor_category", "created_at"]),
+        ("dim_date", "Date Dimension", ["date_key", "full_date", "year", "quarter", "month", "month_name", "day", "is_weekend"]),
+        ("dim_document", "Document Dimension", ["document_key", "document_id", "filename", "file_type", "page_count"]),
+        ("fact_invoice", "Invoice Header Fact", ["invoice_key", "vendor_key", "invoice_date_key", "due_date_key", "document_key", "invoice_number", "total_amount", "tax_amount", "currency", "is_overdue", "payment_status"]),
+        ("fact_invoice_line", "Invoice Line Items Fact", ["line_key", "invoice_key", "line_number", "description", "quantity", "unit_price", "amount"]),
+        ("fact_pipeline_run", "Pipeline Execution Telemetry", ["run_key", "pipeline_name", "start_time", "duration_ms", "status", "rows_processed"])
+    ]
+
+    table_queries = {}
+    for tbl, label, cols in star_schema_tables:
+        if is_postgres:
+            m_code = (
+                f'let\n'
+                f'    Source = PostgreSQL.Database("{server}", "{database}", [CreateNavigationProperties=false]),\n'
+                f'    public_Schema = Source{{[Schema="public"]}}[Data],\n'
+                f'    TargetTable = public_Schema{{[Item="{tbl}"]}}[Data]\n'
+                f'in\n'
+                f'    TargetTable'
+            )
+        else:
+            m_code = (
+                f'let\n'
+                f'    Source = Odbc.Query("dsn=DataNexusSQLite", "SELECT {", ".join(cols)} FROM {tbl}")\n'
+                f'in\n'
+                f'    Source'
+            )
+        table_queries[tbl] = {
+            "label": label,
+            "type": "table",
+            "columns": cols,
+            "m_query": m_code,
+            "mode": "DirectQuery" if is_postgres else "Import"
+        }
+
+    view_queries = {}
+    for view_name, meta in ALLOWED_CURATED_VIEWS.items():
+        if is_postgres:
+            m_code = (
+                f'let\n'
+                f'    Source = PostgreSQL.Database("{server}", "{database}", [CreateNavigationProperties=false]),\n'
+                f'    public_Schema = Source{{[Schema="public"]}}[Data],\n'
+                f'    TargetView = public_Schema{{[Item="{view_name}"]}}[Data]\n'
+                f'in\n'
+                f'    TargetView'
+            )
+        else:
+            m_code = (
+                f'let\n'
+                f'    Source = Odbc.Query("dsn=DataNexusSQLite", "SELECT * FROM {view_name}")\n'
+                f'in\n'
+                f'    Source'
+            )
+        view_queries[view_name] = {
+            "label": meta["description"],
+            "type": "curated_view",
+            "domain": meta["domain"],
+            "columns": meta["columns"],
+            "m_query": m_code,
+            "mode": "DirectQuery" if is_postgres else "Import"
+        }
+
+    dax_script = (
+        "// ------------------------------------------------------------\n"
+        "// DataNexus Curated DAX Measure Definitions (Kimball Star Schema)\n"
+        "// ------------------------------------------------------------\n\n"
+        "Total Invoiced Spend USD = \n"
+        "CALCULATE(SUM(fact_invoice[total_amount]), fact_invoice[currency] = \"USD\")\n\n"
+        "Total Invoiced Tax USD = \n"
+        "CALCULATE(SUM(fact_invoice[tax_amount]), fact_invoice[currency] = \"USD\")\n\n"
+        "Overdue Liability Exposure = \n"
+        "CALCULATE(SUM(fact_invoice[total_amount]), fact_invoice[is_overdue] = TRUE())\n\n"
+        "Overdue Invoices Count = \n"
+        "CALCULATE(COUNTROWS(fact_invoice), fact_invoice[is_overdue] = TRUE())\n\n"
+        "Overdue Rate % = \n"
+        "DIVIDE([Overdue Invoices Count], COUNTROWS(fact_invoice), 0)\n\n"
+        "Data Quality Pass Rate % = \n"
+        "AVERAGE(v_data_quality_scorecard[pass_percentage])\n\n"
+        "Average Processing Time Seconds = \n"
+        "DIVIDE(AVERAGE(fact_document_processing[processing_time_ms]), 1000)\n\n"
+        "Invoice Line Items Count = \n"
+        "COUNTROWS(fact_invoice_line)\n"
+    )
+
+    complete_m_script = (
+        f"// ============================================================\n"
+        f"// DataNexus Power Query (M) Automation Script\n"
+        f"// Target Dialect: {dialect.upper()} (Mode: {'DirectQuery' if is_postgres else 'Import via ODBC'})\n"
+        f"// Generated: {dialect}\n"
+        f"// ============================================================\n\n"
+    )
+
+    for tbl, meta in {**table_queries, **view_queries}.items():
+        complete_m_script += f"// --- Query: {tbl} ({meta['label']}) ---\n"
+        complete_m_script += meta["m_query"] + "\n\n"
+
+    return {
+        "database_engine": dialect,
+        "is_directquery_supported": is_postgres,
+        "connection_template": {
+            "server": server,
+            "database": database,
+            "port": 5432 if is_postgres else None,
+            "dsn": None if is_postgres else "DataNexusSQLite"
+        },
+        "star_schema_tables": table_queries,
+        "curated_views": view_queries,
+        "dax_measures_script": dax_script,
+        "complete_m_script": complete_m_script
+    }
+
+@router.get("/powerbi/export-script")
+def export_powerbi_script():
+    """Download ready-to-run Power Query (M) script and DAX measures bundle for Power BI."""
+    data = get_powerbi_m_queries()
+    combined_content = (
+        data["complete_m_script"]
+        + "\n\n"
+        + data["dax_measures_script"]
+    )
+    return Response(
+        content=combined_content,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename=datanexus_powerbi_{data['database_engine']}.pq"
+        }
+    )

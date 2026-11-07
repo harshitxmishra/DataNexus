@@ -81,6 +81,10 @@ def main():
     if not pbi or len(pbi.get("tables", [])) < 6:
         failures += 1
 
+    mqueries = test_endpoint("Power BI M-Queries Generator", "/api/analytics/powerbi/m-queries")
+    if not mqueries or len(mqueries.get("star_schema_tables", {})) < 6:
+        failures += 1
+
     lineage = test_endpoint("Lineage Summary", "/api/lineage/summary")
     if not lineage or lineage.get("total_nodes", 0) == 0:
         failures += 1

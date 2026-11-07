@@ -455,3 +455,38 @@ DataNexus provides a complete dimensional semantic model exposed through curated
 6. `v_pipeline_freshness`: Batch execution latency, row counts, and error rates.
 7. `v_indexing_coverage`: Percentage of completed documents indexed in the search engine.
 
+---
+
+## 9. Real-Time Streaming, Power BI Automation & Container Deployment (Phase 6)
+
+### 9.1 Server-Sent Events (SSE) Pub/Sub Engine
+DataNexus implements an in-memory asynchronous event broadcasting topology (`PipelineEventBroadcaster` in `backend/app/services/streaming.py`) supporting real-time telemetry streaming:
+
+```
+[ProcessingQueueService] ──emit_sync()──► [PipelineEventBroadcaster]
+                                                │
+                 ┌──────────────────────────────┴──────────────────────────────┐
+                 ▼                                                             ▼
+    [doc:{id} Subscriber Queues]                                   [global Subscriber Queues]
+                 │                                                             │
+                 ▼                                                             ▼
+    GET /api/documents/{id}/events/stream                        GET /api/documents/events/stream
+                 │                                                             │
+                 ▼                                                             ▼
+     DocumentDetailPage.tsx                                         Platform Monitoring
+```
+
+- **Snapshots & Live Transitions**: Connecting to a document stream immediately emits historical completed stage events as a `snapshot` event, followed by live `stage_event`, `pipeline_completed`, or `pipeline_failed` events.
+- **Connection Health**: Transmits periodic keepalive `: ping\n\n` comments every 15 seconds to prevent intermediate proxy timeouts.
+
+### 9.2 Automated Power BI M-Query Generation
+- **Dialect Sensitivity**: Automatically detects whether PostgreSQL (DirectQuery) or SQLite (ODBC Import) is active and renders optimized M code.
+- **Export Bundle**: `GET /api/analytics/powerbi/export-script` compiles all Kimball dimension/fact table M queries and 8 production DAX measures into a downloadable `.pq` script.
+
+### 9.3 Production Multi-Container Orchestration (`docker-compose.yml`)
+- **PostgreSQL 16**: Containerized primary store with healthcheck verification (`pg_isready`).
+- **Elasticsearch 8.11**: Single-node cluster with 512MB RAM heap configuration and cluster health probing.
+- **FastAPI Backend**: Automated entrypoint running Alembic migrations, database self-seeding, and Uvicorn workers.
+- **Frontend & Nginx**: Multi-stage Vite build served by Nginx with reverse proxy buffering disabled for SSE streams (`proxy_buffering off;`).
+
+

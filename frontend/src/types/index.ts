@@ -338,3 +338,36 @@ export interface SystemReadiness {
     model: string;
   };
 }
+
+export interface PowerBiTableQuery {
+  label: string;
+  type: string;
+  columns: string[];
+  m_query: string;
+  mode: string;
+  domain?: string;
+}
+
+export interface PowerBiMQueriesResponse {
+  database_engine: string;
+  is_directquery_supported: boolean;
+  connection_template: {
+    server: string;
+    database: string;
+    port?: number | null;
+    dsn?: string | null;
+  };
+  star_schema_tables: Record<string, PowerBiTableQuery>;
+  curated_views: Record<string, PowerBiTableQuery>;
+  dax_measures_script: string;
+  complete_m_script: string;
+}
+
+export interface StreamStageEvent {
+  document_id: string;
+  stage: string;
+  status: string;
+  duration_ms: number;
+  details: string;
+  timestamp: string;
+}

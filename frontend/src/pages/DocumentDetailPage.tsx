@@ -32,6 +32,9 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<ExtractedField | null>(null);
   const [activeTab, setActiveTab] = useState<'fields' | 'line_items' | 'chunks' | 'stages'>('fields');
+  const [sseConnected, setSseConnected] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
 
   const loadDocument = async () => {
     try {
@@ -51,7 +54,44 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
   useEffect(() => {
     loadDocument();
+
+    const unsubscribe = api.subscribeDocumentEvents(
+      documentId,
+      (ev) => {
+        setSseConnected(true);
+        if (ev.type === 'stage_event') {
+          setStreamingStatus(`Stage: ${ev.data.stage} (${ev.data.status})`);
+        } else if (ev.type === 'pipeline_completed') {
+          setIsReprocessing(false);
+          setStreamingStatus('Pipeline completed');
+          loadDocument();
+        } else if (ev.type === 'pipeline_failed') {
+          setIsReprocessing(false);
+          setStreamingStatus(`Pipeline failed: ${ev.data.error_message}`);
+          loadDocument();
+        }
+      },
+      () => {
+        setSseConnected(false);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, [documentId]);
+
+  const handleReprocess = async () => {
+    try {
+      setIsReprocessing(true);
+      setActiveTab('stages');
+      setStreamingStatus('Triggering pipeline re-execution...');
+      await api.reprocessDocument(documentId);
+    } catch (err: any) {
+      setError(err.message || 'Reprocessing failed');
+      setIsReprocessing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,10 +138,24 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             <span className="text-xs font-mono text-slate-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
               v{doc.version}
             </span>
+            {sseConnected && (
+              <span className="flex items-center space-x-1.5 px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>SSE Connected</span>
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center space-x-3">
+          <button
+            onClick={handleReprocess}
+            disabled={isReprocessing}
+            className="flex items-center space-x-2 px-3 py-1.5 rounded bg-slate-850 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-xs font-mono text-amber-300 transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isReprocessing ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
+            <span>{isReprocessing ? 'Reprocessing...' : 'Reprocess Pipeline'}</span>
+          </button>
           <button
             onClick={() => onNavigateToLineage(doc.id)}
             className="flex items-center space-x-2 px-3 py-1.5 rounded bg-slate-850 hover:bg-slate-800 border border-slate-700 text-xs font-mono text-brand-300 transition"
@@ -118,6 +172,21 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
           </button>
         </div>
       </div>
+
+      {streamingStatus && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-brand-500/30 bg-brand-950/20 text-brand-200 text-xs font-mono">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-brand-400 animate-ping"></span>
+            <span>{streamingStatus}</span>
+          </div>
+          <button
+            onClick={() => setStreamingStatus(null)}
+            className="text-slate-400 hover:text-slate-200 text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Signature Investigation Workspace Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
