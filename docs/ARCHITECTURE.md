@@ -489,4 +489,34 @@ DataNexus implements an in-memory asynchronous event broadcasting topology (`Pip
 - **FastAPI Backend**: Automated entrypoint running Alembic migrations, database self-seeding, and Uvicorn workers.
 - **Frontend & Nginx**: Multi-stage Vite build served by Nginx with reverse proxy buffering disabled for SSE streams (`proxy_buffering off;`).
 
+---
+
+## 10. Interactive Visual PDF Evidence & Spatial Coordinate Architecture (Phase 7)
+
+### 10.1 Native Canvas Rendering & Client Worker Packaging
+The Document Detail workspace incorporates an interactive, in-browser visual PDF evidence viewer (`PDFVisualEvidenceViewer.tsx`) built directly on Mozilla's `pdfjs-dist`:
+- **Vite-Optimized Asset Bundling**: PDF.js web workers are packaged locally using `import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'`, eliminating external CDN availability hazards.
+- **Hardware-Accelerated HTML5 Canvas**: High-DPI canvas viewports render original binary pages with dynamic zoom levels (75% to 200%), custom pan navigation, and reset-to-fit capabilities.
+- **Seamless Document Binary Streaming**: The viewer directly streams raw source binaries via authenticated `GET /api/documents/{id}/download` endpoints.
+
+### 10.2 Content-Stream Spatial Coordinate Extraction (`pypdf` Visitor Transform)
+Unlike naive OCR tools that guess pixel positions, DataNexus inspects authentic text transformation matrices directly from the PDF content stream via `PDFEvidenceService` (`backend/app/services/pdf_evidence.py`):
+- **Transformation Matrix Parsing**: Intercepts `tm` matrices (`tm[4]` = X, `tm[5]` = Y) and character font sizes through `page.extract_text(visitor_text=visitor)`.
+- **Cartesian to Web DOM Normalization**:
+  Standard PDF coordinates locate the origin $(0, 0)$ at the bottom-left of the page. The service transforms these to responsive top-left percentages:
+  $$\text{norm\_top\_pct} = \frac{\text{page\_height} - y - h}{\text{page\_height}} \times 100\%$$
+  $$\text{norm\_left\_pct} = \frac{x}{\text{page\_width}} \times 100\%$$
+  $$\text{norm\_width\_pct} = \frac{w}{\text{page\_width}} \times 100\%$$
+  $$\text{norm\_height\_pct} = \frac{h}{\text{page\_height}} \times 100\%$$
+
+### 10.3 Strict Zero-Fabrication Integrity Policy
+- **No Synthetic Boxes**: If an extracted field or line item cannot be matched with certainty to an authentic text token in the PDF content stream, `bounding_box` is explicitly returned as `None` and `has_coordinates` is set to `False`.
+- **Honest Graceful Degradation**: The UI clearly denotes unmapped fields with an honest informational badge ("Visual coordinates not detected in stream. Position verified via character offsets [start..end]"), preserving immutable audit transparency.
+- **Non-PDF Handling**: For non-PDF documents (CSV, plain text, tabular files), coordinate extraction gracefully yields `is_pdf: False` and empty coordinate maps without throwing errors or breaking the interface.
+
+### 10.4 Bidirectional Inspector-Viewer Synchronization
+- **One-Click Page & Bounding Box Jumping**: Selecting any field or line item in the `Field Evidence & Provenance Inspector` immediately turns the viewer to the target page, animates a high-contrast glowing focus box, and positions a mini field tag directly over the stream evidence.
+- **Direct Canvas Interaction**: Clicking any colored bounding box on the PDF canvas triggers `onSelectField`, focusing the corresponding field details in the inspector.
+
+
 

@@ -53,7 +53,11 @@ def main():
     if not docs or len(docs) == 0:
         print("  Warning: No documents found in database. Run 'python scripts/seed_database.py'")
     else:
-        print(f"  Found {len(docs)} seeded document(s). First ID: {docs[0]['id']}")
+        first_id = docs[0]['id']
+        print(f"  Found {len(docs)} seeded document(s). First ID: {first_id}")
+        coords = test_endpoint("PDF Evidence Coordinates", f"/api/documents/{first_id}/evidence-coordinates")
+        if not coords or not coords.get("is_pdf"):
+            failures += 1
 
     # 3. Analytics & Overview
     overview = test_endpoint("Analytics Overview", "/api/analytics/overview")
