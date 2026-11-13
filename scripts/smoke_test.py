@@ -13,7 +13,7 @@ BASE_URL = "http://127.0.0.1:8008"
 
 def test_endpoint(name: str, path: str, expected_status: int = 200) -> dict:
     url = f"{BASE_URL}{path}"
-    print(f"Testing {name.ljust(35)} -> {path} ... ", end="")
+    print(f"Testing {name.ljust(35)} -> {path} ... ", end="", flush=True)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "DataNexus-SmokeTest/1.0"})
         with urllib.request.urlopen(req, timeout=30) as response:
