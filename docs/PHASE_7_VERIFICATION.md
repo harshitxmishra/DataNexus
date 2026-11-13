@@ -140,3 +140,4 @@ dist/assets/index-C2w9fpEL.js           1,120.18 kB │ gzip: 290.97 kB
 - **RAG & Search**: Neural embeddings, BM25, and hybrid RRF retrieval unaffected.
 - **Data Platform & Lineage**: 11-rule DQ engine, DAG lineage, and curated views functional.
 - **Real-Time Streaming**: Server-Sent Events (SSE) continue streaming live stage updates on Document Detail.
+

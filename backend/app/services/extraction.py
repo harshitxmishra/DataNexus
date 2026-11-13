@@ -343,25 +343,74 @@ class DocumentExtractionService:
             ))
             confidences.append(0.88)
 
-        # 8. Line Items Table Parsing (heuristic lines with description, qty, unit price, amount)
-        line_item_regex = re.compile(
-            r"^\s*([A-Za-z0-9\s\-_/]{4,40})\s+([0-9]+(?:\.[0-9]+)?)\s+[$€£₹]?([0-9]+(?:\.[0-9]{2})?)\s+[$€£₹]?([0-9]+(?:\.[0-9]{2}))\s*$",
+        # 8. Line Items Table Parsing (hybrid single-line and multi-line column extractor)
+        single_line_regex = re.compile(
+            r"^[ \t]*([A-Za-z0-9 \-_/()]{3,60})[ \t]+([0-9]+(?:\.[0-9]+)?)[ \t]+(?:[A-Z]{3}|[$€£₹])?[ \t]*([0-9,]+(?:\.[0-9]{2})?)[ \t]+(?:[A-Z]{3}|[$€£₹])?[ \t]*([0-9,]+(?:\.[0-9]{2})?)[ \t]*$",
             re.MULTILINE
         )
-        matches = line_item_regex.findall(combined_text)
-        for idx, (desc, qty, unit, amt) in enumerate(matches, start=1):
+        single_matches = single_line_regex.findall(combined_text)
+        for idx, (desc, qty, unit, amt) in enumerate(single_matches, start=1):
             try:
                 line_items.append(LineItemData(
                     line_number=idx,
                     description=desc.strip(),
                     quantity=float(qty),
-                    unit_price=float(unit),
-                    amount=float(amt),
+                    unit_price=float(unit.replace(",", "")),
+                    amount=float(amt.replace(",", "")),
                     page_number=1,
                     confidence=0.88
                 ))
             except ValueError:
                 pass
+
+        # Fallback to multi-line table sequence (standard in pypdf column-wise stream extraction)
+        if not line_items:
+            lines = [l.strip() for l in combined_text.split("\n") if l.strip()]
+            in_table = False
+            table_lines: List[str] = []
+            for l in lines:
+                lower_l = l.lower()
+                if any(h in lower_l for h in ["line item", "description", "unit price", "amount"]) and not in_table:
+                    if "subtotal" not in lower_l and "total" not in lower_l:
+                        in_table = True
+                        continue
+                if in_table:
+                    if any(term in lower_l for term in ["subtotal", "total amount", "tax / vat", "tax:", "vat:"]):
+                        break
+                    if lower_l in ["qty", "unit price", "amount", "description", "line item description"]:
+                        continue
+                    table_lines.append(l)
+
+            idx = 1
+            i = 0
+            while i <= len(table_lines) - 4:
+                cand_desc = table_lines[i]
+                cand_qty = table_lines[i + 1]
+                cand_unit = table_lines[i + 2]
+                cand_amt = table_lines[i + 3]
+
+                qty_match = re.search(r"^[0-9]+(?:\.[0-9]+)?$", cand_qty)
+                unit_match = re.search(r"([0-9,]+(?:\.[0-9]{2})?)", cand_unit)
+                amt_match = re.search(r"([0-9,]+(?:\.[0-9]{2})?)", cand_amt)
+
+                if qty_match and unit_match and amt_match and len(cand_desc) >= 3:
+                    try:
+                        clean_desc = re.sub(r"^(?:Line Item Description|Description|Qty|Unit Price|Amount)\s*", "", cand_desc, flags=re.IGNORECASE).strip()
+                        line_items.append(LineItemData(
+                            line_number=idx,
+                            description=clean_desc or cand_desc,
+                            quantity=float(cand_qty),
+                            unit_price=float(unit_match.group(1).replace(",", "")),
+                            amount=float(amt_match.group(1).replace(",", "")),
+                            page_number=1,
+                            confidence=0.88
+                        ))
+                        idx += 1
+                        i += 4
+                        continue
+                    except ValueError:
+                        pass
+                i += 1
 
         overall_confidence = round(sum(confidences) / len(confidences), 3) if confidences else 0.50
         return fields, line_items, overall_confidence
