@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
+    
+    # Security & API Key Authentication (Optional in development, strict in production)
+    API_KEY_ENABLED: bool = False
+    API_KEY: str = "datanexus_dev_api_key_2026"
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

@@ -132,7 +132,16 @@ class ProcessingQueueService:
             # Stage 4: Embeddings Generation
             start_t = time.perf_counter()
             chunk_texts = [c.content for c in chunks_to_add]
-            chunk_vectors = embedding_service.embed_texts(chunk_texts)
+
+            # Optimization: If duplicate document, reuse existing vectors to avoid redundant tensor operations
+            orig_doc = db.query(Document).filter(Document.id == doc.duplicate_of_id).first() if doc.is_duplicate and doc.duplicate_of_id else None
+            if orig_doc and orig_doc.status == "completed" and len(orig_doc.chunks) == len(chunks_to_add) and all(ch.embedding for ch in orig_doc.chunks):
+                chunk_vectors = [json.loads(ch.embedding) for ch in orig_doc.chunks]
+                embed_details = f"Reused {len(chunks_to_add)} 384-d dense embedding vector(s) from duplicate master {doc.duplicate_of_id[:8]}."
+            else:
+                chunk_vectors = embedding_service.embed_texts(chunk_texts)
+                embed_details = f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s) using {embedding_service.model_name} (v{embedding_service.representation_version})."
+
             for chunk_obj, vec in zip(chunks_to_add, chunk_vectors):
                 chunk_obj.embedding = json.dumps(vec)
                 chunk_obj.embedding_model = embedding_service.model_name
@@ -144,7 +153,7 @@ class ProcessingQueueService:
                 "embedding",
                 "completed",
                 duration_ms,
-                f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s) using {embedding_service.model_name} (v{embedding_service.representation_version}).",
+                embed_details,
                 db
             )
 

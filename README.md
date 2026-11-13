@@ -9,7 +9,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6.svg)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-14%20Passed-emerald.svg)](backend/tests/)
+[![Tests](https://img.shields.io/badge/Tests-99%20Passed-emerald.svg)](backend/tests/)
 
 ---
 
@@ -35,19 +35,22 @@ Its signature capability is **Traceable Intelligence**: the ability to click any
 
 ## 3. Core Implemented Capabilities
 
-- **Content-Addressable File Storage**: Deterministic SHA-256 hashing, duplicate detection, MIME type validation, and path traversal protection.
-- **Native Document Intelligence**: Multi-page PDF text extraction (`pypdf`) with character-level offsets, confidence metrics, and structured field parsing (invoice number, vendor, date, currency, amounts).
+- **Content-Addressable File Storage**: Deterministic SHA-256 hashing, duplicate detection with vector reuse, MIME type validation, and path traversal protection.
+- **Native Document Intelligence**: Multi-page PDF text extraction (`pypdf`) with character-level offsets, confidence metrics, and structured field parsing (invoice number, vendor, date, currency, amounts, line items).
+- **Interactive Visual PDF Evidence Viewer**: Native PDF.js canvas rendering with authentic stream bounding box extraction (`tm[4]`, `tm[5]`), zero-fabrication guarantees, and bidirectional field-to-canvas jumping.
 - **Hybrid Retrieval Engine**:
   - BM25 lexical term matching.
-  - Dense 384-dimensional $L_2$-normalized vector search.
+  - Dense 384-dimensional $L_2$-normalized vector search (`all-MiniLM-L6-v2`).
   - Reciprocal Rank Fusion (RRF) rank aggregation ($k=60$) eliminating score calibration mismatches.
-  - Transparent dual-provider architecture: connects to Elasticsearch on port 9200 when available, with automatic graceful fallback to an embedded local vector/lexical provider when offline.
-- **Evidence-Backed RAG Question Answering**: Questions are answered strictly using retrieved document evidence. Material claims cite document IDs and page numbers; if evidence is insufficient, the system transparently reports insufficiency rather than hallucinating.
+  - Dual-provider router: connects to Elasticsearch on port 9200 when available, with automatic graceful fallback to an embedded local vector/lexical provider when offline.
+- **Evidence-Backed RAG Question Answering**: Ultra-low latency inference via GroqCloud (`qwen/qwen3.8-27b`), verifiable citations, multi-model fallback ladder, and strict negative evidence gating (`INSUFFICIENT_EVIDENCE`).
+- **Real-Time SSE Telemetry**: In-memory asynchronous `PipelineEventBroadcaster` streaming sub-second pipeline progression events to frontend clients.
 - **Idempotent Star-Schema ETL**: Automated dimensional loading into `dim_vendor`, `dim_date`, `fact_invoice`, `fact_invoice_line`, and `fact_document_processing`.
-- **Deterministic Data Quality Engine**: Automated audit across 8 financial and structural rules (completeness, non-negativity, date validity, ISO currency codes, subtotal/tax consistency).
+- **Deterministic Data Quality Engine**: Automated audit across 11 financial and structural rules (completeness, non-negativity, date sanity, ISO currency codes, subtotal/tax consistency, line-item summation balance).
 - **Full Lineage Graph (DAG)**: End-to-end directed lineage recording:
   `Raw File -> Document Version -> Extracted Field -> Dimensional Fact -> Curated SQL View -> BI Metric`.
-- **Curated SQL Views & Power BI**: 7 pre-aggregated reporting views with explicit foreign key grain and DAX measure specifications.
+- **Curated SQL Views & Power BI Automation**: 7 pre-aggregated reporting views, dialect-aware Power Query (M) code generator, and downloadable `.pq` scripts.
+- **API Workspace**: Ready-to-use Postman Collection (`DataNexus.postman_collection.json`) covering all 25+ endpoints with automated assertions.
 - **Distinctive Analytical UI**: High-density dark-slate aesthetic inspired by Linear, Stripe, and Metabase across 5 dedicated workspaces.
 
 ---

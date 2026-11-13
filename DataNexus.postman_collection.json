@@ -1,0 +1,321 @@
+{
+  "info": {
+    "name": "DataNexus Platform API",
+    "_postman_id": "datanexus-enterprise-v1",
+    "description": "Comprehensive Postman Collection for DataNexus — Document Intelligence, Semantic Retrieval, Data Engineering, and Business Intelligence Platform.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Health & Readiness",
+      "item": [
+        {
+          "name": "Liveness Probe",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/health/liveness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service is alive', () => pm.expect(pm.response.json().status).to.eql('alive'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deep Readiness Probe",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Database healthy', () => pm.expect(pm.response.json().database.status).to.eql('healthy'));",
+                  "pm.test('Embedding ready', () => pm.expect(pm.response.json().embedding_provider.status).to.eql('ready'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Documents & Visual Evidence",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/documents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const docs = pm.response.json();",
+                  "if (docs.length > 0) pm.environment.set('documentId', docs[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/documents/{{documentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains extracted fields', () => pm.expect(pm.response.json()).to.have.property('extracted_fields'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get PDF Evidence Coordinates (Bounding Boxes)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/documents/{{documentId}}/evidence-coordinates"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains field coordinates', () => pm.expect(pm.response.json()).to.have.property('field_coordinates'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Original Binary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/documents/{{documentId}}/download"
+          }
+        },
+        {
+          "name": "Reprocess Document Pipeline",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/documents/{{documentId}}/reprocess"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Search & Generative RAG",
+      "item": [
+        {
+          "name": "Hybrid RRF Search",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Apex Cloud Kubernetes infrastructure\",\n  \"mode\": \"hybrid\",\n  \"top_k\": 5\n}"
+            },
+            "url": "{{baseUrl}}/api/search/query"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Hits returned', () => pm.expect(pm.response.json().total_hits).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RAG Question Answering (with Citations)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What is the total invoice amount for Apex Cloud Services and when is it due?\",\n  \"top_k\": 5\n}"
+            },
+            "url": "{{baseUrl}}/api/search/qa"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has answer', () => pm.expect(pm.response.json()).to.have.property('answer'));",
+                  "pm.test('Evidence status', () => pm.expect(['sufficient', 'insufficient']).to.include(pm.response.json().evidence_status));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Engine Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/search/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Data Platform, Quality & Lineage",
+      "item": [
+        {
+          "name": "Data Quality Scorecard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/data-platform/quality/scorecard"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has overall compliance', () => pm.expect(pm.response.json()).to.have.property('overall_compliance_rate'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evaluate Quality Rules (On-Demand)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/data-platform/quality/evaluate"
+          }
+        },
+        {
+          "name": "Lineage Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lineage/summary"
+          }
+        },
+        {
+          "name": "Document 6-Hop Lineage Graph",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lineage/documents/{{documentId}}?direction=document"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Analytics & Power BI",
+      "item": [
+        {
+          "name": "Analytics Overview KPIs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/overview"
+          }
+        },
+        {
+          "name": "Vendor Spend Analytics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/vendor-spend"
+          }
+        },
+        {
+          "name": "List Curated SQL Views",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/views"
+          }
+        },
+        {
+          "name": "Query Curated View",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/views/v_invoice_spend_by_vendor?limit=20"
+          }
+        },
+        {
+          "name": "Power BI Semantic Model Specification",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/powerbi/semantic-model"
+          }
+        },
+        {
+          "name": "Power BI M-Queries Generator",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/powerbi/m-queries"
+          }
+        },
+        {
+          "name": "Export Power BI M Script (.pq)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/analytics/powerbi/export-script"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8008",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "datanexus_dev_api_key_2026",
+      "type": "string"
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
+

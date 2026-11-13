@@ -18,7 +18,9 @@ def test_documents_lifecycle(client):
     assert r_list.status_code == 200
     docs = r_list.json()
     assert len(docs) >= 1
-    doc_id = docs[0]["id"]
+    # Pick a completed document to test lifecycle, download, and reprocessing
+    completed_doc = next((d for d in docs if d.get("status") == "completed"), docs[0])
+    doc_id = completed_doc["id"]
 
     # 2. Document details
     r_detail = client.get(f"/api/documents/{doc_id}")
@@ -85,7 +87,8 @@ def test_data_platform_and_analytics_api(client):
 
     # Lineage
     r_list = client.get("/api/documents")
-    first_id = r_list.json()[0]["id"]
+    completed_doc = next((d for d in r_list.json() if d.get("status") == "completed"), r_list.json()[0])
+    first_id = completed_doc["id"]
     r_lineage = client.get(f"/api/lineage/document/{first_id}")
     assert r_lineage.status_code == 200
     lin = r_lineage.json()

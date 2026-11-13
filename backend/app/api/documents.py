@@ -29,30 +29,34 @@ async def upload_document(
     """
     file_hash, storage_path, file_size, filename, detected_type = await storage_service.save_upload(file)
 
-    # Duplicate detection by SHA-256 hash
-    existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
-    is_duplicate = existing_doc is not None
-    duplicate_of_id = existing_doc.id if is_duplicate else None
+    try:
+        # Duplicate detection by SHA-256 hash
+        existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
+        is_duplicate = existing_doc is not None
+        duplicate_of_id = existing_doc.id if is_duplicate else None
 
-    # Derive document type if csv
-    if detected_type == "text/csv" or filename.lower().endswith(".csv"):
-        document_type = "tabular_csv"
+        # Derive document type if csv
+        if detected_type == "text/csv" or filename.lower().endswith(".csv"):
+            document_type = "tabular_csv"
 
-    doc = Document(
-        filename=filename,
-        original_name=file.filename or filename,
-        file_type=detected_type,
-        file_size=file_size,
-        file_hash=file_hash,
-        storage_path=storage_path,
-        document_type=document_type,
-        status="uploaded",
-        is_duplicate=is_duplicate,
-        duplicate_of_id=duplicate_of_id
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(doc)
+        doc = Document(
+            filename=filename,
+            original_name=file.filename or filename,
+            file_type=detected_type,
+            file_size=file_size,
+            file_hash=file_hash,
+            storage_path=storage_path,
+            document_type=document_type,
+            status="uploaded",
+            is_duplicate=is_duplicate,
+            duplicate_of_id=duplicate_of_id
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+    except Exception as exc:
+        storage_service.delete_file(storage_path)
+        raise exc
 
     if process_immediately:
         try:

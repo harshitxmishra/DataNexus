@@ -60,6 +60,7 @@ class DocumentListItem(BaseModel):
     page_count: int
     chunk_count: int
     is_duplicate: bool
+    duplicate_of_id: Optional[str] = None
     extraction_confidence: Optional[float] = None
     created_at: datetime
     processed_at: Optional[datetime] = None

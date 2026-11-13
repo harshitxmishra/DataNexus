@@ -29,6 +29,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onSelectDocument }
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const loadDocuments = async () => {
     try {
@@ -74,24 +76,33 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onSelectDocument }
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, docId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, doc: DocumentItem) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this document and all extracted records?')) return;
+    setDocToDelete(doc);
+  };
+
+  const confirmDelete = async () => {
+    if (!docToDelete) return;
     try {
-      await api.deleteDocument(docId);
+      await api.deleteDocument(docToDelete.id);
+      setActionFeedback({ type: 'success', message: `Document "${docToDelete.filename}" deleted.` });
+      setDocToDelete(null);
       await loadDocuments();
     } catch (e: any) {
-      alert(`Delete error: ${e.message}`);
+      setActionFeedback({ type: 'error', message: `Delete error: ${e.message}` });
+      setDocToDelete(null);
     }
   };
 
   const handleReprocess = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
     try {
+      setActionFeedback({ type: 'success', message: 'Reprocessing document pipeline...' });
       await api.reprocessDocument(docId);
+      setActionFeedback({ type: 'success', message: 'Pipeline reprocessed successfully.' });
       await loadDocuments();
     } catch (e: any) {
-      alert(`Reprocess error: ${e.message}`);
+      setActionFeedback({ type: 'error', message: `Reprocess error: ${e.message}` });
     }
   };
 
@@ -256,7 +267,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onSelectDocument }
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={(e) => handleDelete(e, doc.id)}
+                        onClick={(e) => handleDeleteClick(e, doc)}
                         className="p-1.5 rounded hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 transition"
                         title="Safe Delete"
                       >
@@ -320,6 +331,34 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onSelectDocument }
                   Supported formats: PDF, CSV, PNG, JPG (up to 25MB)
                 </div>
               </label>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {docToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg max-w-sm w-full p-5 space-y-4 shadow-xl font-mono text-xs">
+            <div className="flex items-center space-x-2.5 text-rose-400 font-semibold text-sm">
+              <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+              <span>Confirm Document Deletion</span>
+            </div>
+            <p className="text-xs text-slate-300 font-sans leading-relaxed">
+              Are you sure you want to permanently delete <strong className="text-white">{docToDelete.filename}</strong>? This action will purge its raw file binary, extracted fields, chunks, and lineage anchors.
+            </p>
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                onClick={() => setDocToDelete(null)}
+                className="px-3 py-1.5 rounded text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-850 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-3.5 py-1.5 rounded font-semibold bg-rose-600 hover:bg-rose-500 text-white transition shadow-sm"
+              >
+                Delete Document
+              </button>
             </div>
           </div>
         </div>
