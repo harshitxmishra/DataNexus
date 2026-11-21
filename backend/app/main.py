@@ -22,6 +22,11 @@ async def lifespan(app: FastAPI):
     # Startup: Ensure tables and views exist
     Base.metadata.create_all(bind=engine)
     init_analytical_views(engine)
+    
+    # v2.0.0: Initialize OpenTelemetry tracing
+    from backend.app.telemetry import setup_telemetry
+    setup_telemetry(app)
+    
     yield
     # Shutdown logic if any
 
@@ -32,13 +37,16 @@ app = FastAPI(
         "Enables end-to-end tracing from high-level BI dashboards and analytical SQL facts "
         "back through transformation pipelines to extracted fields, supporting page text, and original files."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
 
 # CORS Configuration
 if settings.ENVIRONMENT == "production":
     cors_origins = [settings.FRONTEND_URL]
+    # v2.0.0: Support additional CORS origins from config
+    if getattr(settings, "CORS_ORIGINS", ""):
+        cors_origins.extend([o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()])
 else:
     cors_origins = [
         "http://localhost:5173",
@@ -68,7 +76,7 @@ app.include_router(analytics_router, prefix="/api")
 def root():
     return {
         "service": "DataNexus Document Intelligence & Analytics Platform",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "operational",
         "docs_url": "/docs"
     }

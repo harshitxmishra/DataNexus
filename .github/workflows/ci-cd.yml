@@ -1,0 +1,147 @@
+# ============================================================
+# DataNexus v2.0.0 — Continuous Integration & Continuous Delivery
+# ============================================================
+
+name: DataNexus CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, feat/*]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------
+  # 1. Backend Linting & Full Pytest Suite (with RAG Eval Gate)
+  # ------------------------------------------------------------
+  backend-test:
+    name: Backend CI (Tests & RAG Eval Gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest httpx
+          pip install -r backend/requirements.txt
+
+      - name: Ruff Code Quality Lint
+        run: |
+          ruff check backend/app/ --exit-zero
+
+      - name: Execute Pytest Suite & RAG Eval Gate
+        env:
+          PYTHONPATH: .
+          ENVIRONMENT: test
+          DATABASE_URL: sqlite:///./datanexus_test.db
+          RERANKER_ENABLED: "true"
+          STORAGE_BACKEND: "local"
+        run: |
+          pytest backend/tests -v --durations=10
+
+  # ------------------------------------------------------------
+  # 2. Frontend TypeScript Build & Bundle Validation
+  # ------------------------------------------------------------
+  frontend-build:
+    name: Frontend CI (Typecheck & Vite Build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: TypeScript & Vite Production Build
+        working-directory: ./frontend
+        run: npm run build
+
+  # ------------------------------------------------------------
+  # 3. Docker Compose Production Configuration Validation
+  # ------------------------------------------------------------
+  docker-validate:
+    name: Docker Compose Syntax & Compose Config Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Validate Production Docker Compose Config
+        run: |
+          docker compose -f docker-compose.prod.yml config
+
+  # ------------------------------------------------------------
+  # 4. Continuous Delivery (ECR / ECS Deployment) — Gated
+  # ------------------------------------------------------------
+  cd-deploy:
+    name: Production CD (ECR Push & ECS Rollout)
+    needs: [backend-test, frontend-build, docker-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        if: env.AWS_ACCESS_KEY_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Log in to Amazon ECR
+        if: env.AWS_ACCESS_KEY_ID != ''
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+      - name: Build and Push Backend Docker Image
+        if: env.AWS_ACCESS_KEY_ID != ''
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: datanexus-backend
+          IMAGE_TAG: ${{ github.sha }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile.backend .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest

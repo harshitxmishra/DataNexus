@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.services.search import search_service
 from backend.app.services.groq_service import groq_rag_service
+from backend.app.services.cache import cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +36,20 @@ class DocumentQAService:
         top_k: int = 5,
         doc_type_filter: Optional[str] = None
     ) -> Dict[str, Any]:
+        from backend.app.telemetry import trace_span
         start_time = time.perf_counter()
-        
+
+        # v2.0.0: Check cache first
+        cache_key = cache_service.make_query_key(question)
+        cached_result = cache_service.get(cache_key)
+        if cached_result is not None:
+            cached_result["cache_hit"] = True
+            cached_result["latency_ms"] = int((time.perf_counter() - start_time) * 1000)
+            return cached_result
+
         # 1. Retrieve supporting evidence chunks using hybrid search
-        search_res = search_service.search(
+        with trace_span("qa.retrieval", {"question_length": len(question), "top_k": top_k}):
+            search_res = search_service.search(
             query=question,
             db=db,
             mode="hybrid",
@@ -47,6 +58,7 @@ class DocumentQAService:
         )
         
         hits = search_res.get("results", [])
+        reranked = search_res.get("reranked", False)
         
         # 2. Check for insufficiency
         # If no hits or top hit has 0 lexical overlap and below relevance threshold
@@ -82,20 +94,25 @@ class DocumentQAService:
         # Priority 1: GroqCloud LLM (Ultra-low latency, strict citation grounding)
         if groq_rag_service.is_available() and getattr(settings, "LLM_PROVIDER", "groq") in ["groq", "auto", "default"]:
             try:
-                groq_result = groq_rag_service.generate_rag_answer(
-                    question=question,
-                    context_chunks=hits
-                )
+                with trace_span("qa.llm_generation", {"provider": "groq"}):
+                    groq_result = groq_rag_service.generate_rag_answer(
+                        question=question,
+                        context_chunks=hits
+                    )
                 if groq_result.get("success"):
                     duration_ms = int((time.perf_counter() - start_time) * 1000)
-                    return {
+                    result = {
                         "question": question,
                         "answer": groq_result["answer"],
                         "evidence_status": groq_result["evidence_status"],
                         "citations": citations if groq_result["evidence_status"] == "sufficient" else [],
                         "provider_used": f"groq ({groq_result['model_used']})",
+                        "reranked": reranked,
+                        "cache_hit": False,
                         "latency_ms": duration_ms
                     }
+                    cache_service.set(cache_key, result)
+                    return result
                 else:
                     logger.warning(f"Groq RAG failed, proceeding to fallback: {groq_result.get('error')}")
             except Exception as e:
@@ -126,14 +143,18 @@ class DocumentQAService:
                         data = resp.json()
                         raw_answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                         duration_ms = int((time.perf_counter() - start_time) * 1000)
-                        return {
+                        result = {
                             "question": question,
                             "answer": raw_answer,
                             "evidence_status": "sufficient",
                             "citations": citations,
                             "provider_used": f"gemini ({settings.LLM_MODEL})",
+                            "reranked": reranked,
+                            "cache_hit": False,
                             "latency_ms": duration_ms
                         }
+                        cache_service.set(cache_key, result)
+                        return result
             except Exception as e:
                 # Log and fallback to extractive synthesis
                 pass
@@ -142,14 +163,18 @@ class DocumentQAService:
         answer = self._extractive_synthesize(question, hits)
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-        return {
+        result = {
             "question": question,
             "answer": answer,
             "evidence_status": "sufficient" if hits else "insufficient",
             "citations": citations,
             "provider_used": "extractive_evidence_synthesis",
+            "reranked": reranked,
+            "cache_hit": False,
             "latency_ms": duration_ms
         }
+        cache_service.set(cache_key, result)
+        return result
 
     def _extractive_synthesize(self, question: str, hits: List[Dict[str, Any]]) -> str:
         """Deterministic extractive synthesis referencing verified citations."""

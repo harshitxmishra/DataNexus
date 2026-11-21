@@ -64,6 +64,8 @@ data/exports/*
 !data/exports/.gitkeep
 data/staging/*
 !data/staging/.gitkeep
+benchmarks/corpus/*.pdf
+!benchmarks/corpus/.gitkeep
 
 # Local Secrets & Environment Variables
 .env

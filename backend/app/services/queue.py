@@ -59,10 +59,14 @@ class ProcessingQueueService:
         overall_success = True
         partial_failure = False
 
+        # v2.0.0: Import telemetry for per-stage OTel spans
+        from backend.app.telemetry import trace_span
+
         try:
             # Stage 1: Text Extraction & Normalization
             start_t = time.perf_counter()
-            ext_result = extraction_service.process_document(doc.storage_path, doc.file_type)
+            with trace_span("pipeline.text_extraction", {"document_id": doc.id}):
+                ext_result = extraction_service.process_document(doc.storage_path, doc.file_type)
             duration_ms = int((time.perf_counter() - start_t) * 1000)
 
             doc.page_count = ext_result.total_pages
@@ -74,79 +78,82 @@ class ProcessingQueueService:
 
             # Stage 2: Field & Line Item Extraction
             start_t = time.perf_counter()
-            # Clear existing fields for idempotency
-            db.query(ExtractedField).filter(ExtractedField.document_id == doc.id).delete()
-            db.query(InvoiceLineItem).filter(InvoiceLineItem.document_id == doc.id).delete()
+            with trace_span("pipeline.field_extraction", {"document_id": doc.id}):
+                # Clear existing fields for idempotency
+                db.query(ExtractedField).filter(ExtractedField.document_id == doc.id).delete()
+                db.query(InvoiceLineItem).filter(InvoiceLineItem.document_id == doc.id).delete()
 
-            for f in ext_result.fields:
-                db.add(ExtractedField(
-                    document_id=doc.id,
-                    field_name=f.field_name,
-                    field_value=f.field_value,
-                    normalized_value=f.normalized_value,
-                    page_number=f.page_number,
-                    supporting_text=f.supporting_text,
-                    start_char=f.start_char,
-                    end_char=f.end_char,
-                    confidence=f.confidence,
-                    extraction_method=f.extraction_method,
-                    validation_status=f.validation_status
-                ))
+                for f in ext_result.fields:
+                    db.add(ExtractedField(
+                        document_id=doc.id,
+                        field_name=f.field_name,
+                        field_value=f.field_value,
+                        normalized_value=f.normalized_value,
+                        page_number=f.page_number,
+                        supporting_text=f.supporting_text,
+                        start_char=f.start_char,
+                        end_char=f.end_char,
+                        confidence=f.confidence,
+                        extraction_method=f.extraction_method,
+                        validation_status=f.validation_status
+                    ))
 
-            for li in ext_result.line_items:
-                db.add(InvoiceLineItem(
-                    document_id=doc.id,
-                    line_number=li.line_number,
-                    description=li.description,
-                    quantity=li.quantity,
-                    unit_price=li.unit_price,
-                    amount=li.amount,
-                    page_number=li.page_number,
-                    confidence=li.confidence
-                ))
-            db.flush()
+                for li in ext_result.line_items:
+                    db.add(InvoiceLineItem(
+                        document_id=doc.id,
+                        line_number=li.line_number,
+                        description=li.description,
+                        quantity=li.quantity,
+                        unit_price=li.unit_price,
+                        amount=li.amount,
+                        page_number=li.page_number,
+                        confidence=li.confidence
+                    ))
+                db.flush()
             duration_ms = int((time.perf_counter() - start_t) * 1000)
             self._record_stage(doc.id, "field_extraction", "completed", duration_ms,
                                f"Extracted {len(ext_result.fields)} field(s), {len(ext_result.line_items)} line item(s).", db)
 
             # Stage 3: Chunking
             start_t = time.perf_counter()
-            db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).delete()
-            chunks_to_add = []
-            for ch in ext_result.chunks:
-                chunk_obj = DocumentChunk(
-                    document_id=doc.id,
-                    chunk_index=ch.chunk_index,
-                    page_number=ch.page_number,
-                    start_char=ch.start_char,
-                    end_char=ch.end_char,
-                    content=ch.content
-                )
-                db.add(chunk_obj)
-                chunks_to_add.append(chunk_obj)
-            db.flush()
-            doc.chunk_count = len(chunks_to_add)
+            with trace_span("pipeline.chunking", {"document_id": doc.id}):
+                db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).delete()
+                chunks_to_add = []
+                for ch in ext_result.chunks:
+                    chunk_obj = DocumentChunk(
+                        document_id=doc.id,
+                        chunk_index=ch.chunk_index,
+                        page_number=ch.page_number,
+                        start_char=ch.start_char,
+                        end_char=ch.end_char,
+                        content=ch.content
+                    )
+                    db.add(chunk_obj)
+                    chunks_to_add.append(chunk_obj)
+                db.flush()
+                doc.chunk_count = len(chunks_to_add)
             duration_ms = int((time.perf_counter() - start_t) * 1000)
             self._record_stage(doc.id, "chunking", "completed", duration_ms, f"Generated {len(chunks_to_add)} text chunk(s).", db)
 
             # Stage 4: Embeddings Generation
             start_t = time.perf_counter()
-            chunk_texts = [c.content for c in chunks_to_add]
+            with trace_span("pipeline.embedding", {"document_id": doc.id, "chunk_count": len(chunks_to_add)}):
+                chunk_texts = [c.content for c in chunks_to_add]
 
-            # Optimization: If duplicate document, reuse existing vectors to avoid redundant tensor operations
-            orig_doc = db.query(Document).filter(Document.id == doc.duplicate_of_id).first() if doc.is_duplicate and doc.duplicate_of_id else None
-            if orig_doc and orig_doc.status == "completed" and len(orig_doc.chunks) == len(chunks_to_add) and all(ch.embedding for ch in orig_doc.chunks):
-                chunk_vectors = [json.loads(ch.embedding) for ch in orig_doc.chunks]
-                embed_details = f"Reused {len(chunks_to_add)} 384-d dense embedding vector(s) from duplicate master {doc.duplicate_of_id[:8]}."
-            else:
-                chunk_vectors = embedding_service.embed_texts(chunk_texts)
-                embed_details = f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s) using {embedding_service.model_name} (v{embedding_service.representation_version})."
+                # Optimization: If duplicate document, reuse existing vectors to avoid redundant tensor operations
+                orig_doc = db.query(Document).filter(Document.id == doc.duplicate_of_id).first() if doc.is_duplicate and doc.duplicate_of_id else None
+                if orig_doc and orig_doc.status == "completed" and len(orig_doc.chunks) == len(chunks_to_add) and all(ch.embedding for ch in orig_doc.chunks):
+                    chunk_vectors = [json.loads(ch.embedding) for ch in orig_doc.chunks]
+                    embed_details = f"Reused {len(chunks_to_add)} 384-d dense embedding vector(s) from duplicate master {doc.duplicate_of_id[:8]}."
+                else:
+                    chunk_vectors = embedding_service.embed_texts(chunk_texts)
+                    embed_details = f"Generated {len(chunks_to_add)} 384-d dense embedding vector(s) using {embedding_service.model_name} (v{embedding_service.representation_version})."
 
-            for chunk_obj, vec in zip(chunks_to_add, chunk_vectors):
-                chunk_obj.embedding = json.dumps(vec)
-                chunk_obj.embedding_model = embedding_service.model_name
-                chunk_obj.embedding_version = embedding_service.representation_version
-            db.flush()
+                for chunk_obj, vec in zip(chunks_to_add, chunk_vectors):
+                    chunk_obj.embedding = json.dumps(vec)
+                    chunk_obj.embedding_model = embedding_service.model_name
+                    chunk_obj.embedding_version = embedding_service.representation_version
+                db.flush()
             duration_ms = int((time.perf_counter() - start_t) * 1000)
             self._record_stage(
                 doc.id,
@@ -159,34 +166,37 @@ class ProcessingQueueService:
 
             # Stage 5: Search Indexing
             start_t = time.perf_counter()
-            es_provider = search_service.es_provider
-            es_available = es_provider.is_available()
-            if es_available:
-                es_provider.init_index()
-                # Purge any prior chunks for this document (e.g. on re-processing) to prevent orphans
-                es_provider.delete_document_chunks(doc.id)
-                for chunk_obj in chunks_to_add:
-                    vec = json.loads(chunk_obj.embedding) if chunk_obj.embedding else []
-                    indexed = es_provider.index_chunk(chunk_obj, doc, vec)
-                    chunk_obj.indexed_in_es = indexed
-                duration_ms = int((time.perf_counter() - start_t) * 1000)
-                self._record_stage(doc.id, "indexing", "completed", duration_ms, f"Indexed {len(chunks_to_add)} chunk(s) in Elasticsearch.", db)
-            else:
-                for chunk_obj in chunks_to_add:
-                    chunk_obj.indexed_in_es = False  # Pending Elasticsearch outbox indexing
-                duration_ms = int((time.perf_counter() - start_t) * 1000)
-                self._record_stage(doc.id, "indexing", "completed", duration_ms, 
-                                   f"Elasticsearch offline. {len(chunks_to_add)} chunk(s) stored in database; local search fallback active.", db)
+            with trace_span("pipeline.indexing", {"document_id": doc.id}):
+                es_provider = search_service.es_provider
+                es_available = es_provider.is_available()
+                if es_available:
+                    es_provider.init_index()
+                    # Purge any prior chunks for this document (e.g. on re-processing) to prevent orphans
+                    es_provider.delete_document_chunks(doc.id)
+                    for chunk_obj in chunks_to_add:
+                        vec = json.loads(chunk_obj.embedding) if chunk_obj.embedding else []
+                        indexed = es_provider.index_chunk(chunk_obj, doc, vec)
+                        chunk_obj.indexed_in_es = indexed
+                    duration_ms = int((time.perf_counter() - start_t) * 1000)
+                    self._record_stage(doc.id, "indexing", "completed", duration_ms, f"Indexed {len(chunks_to_add)} chunk(s) in Elasticsearch.", db)
+                else:
+                    for chunk_obj in chunks_to_add:
+                        chunk_obj.indexed_in_es = False  # Pending Elasticsearch outbox indexing
+                    duration_ms = int((time.perf_counter() - start_t) * 1000)
+                    self._record_stage(doc.id, "indexing", "completed", duration_ms, 
+                                       f"Elasticsearch offline. {len(chunks_to_add)} chunk(s) stored in database; local search fallback active.", db)
 
             # Stage 6: Analytical ETL Transformations
             start_t = time.perf_counter()
-            pipeline_service.run_invoice_transformation_pipeline(db)
+            with trace_span("pipeline.analytics_transform", {"document_id": doc.id}):
+                pipeline_service.run_invoice_transformation_pipeline(db)
             duration_ms = int((time.perf_counter() - start_t) * 1000)
             self._record_stage(doc.id, "analytics_transform", "completed", duration_ms, "Dimensional star-schema models updated.", db)
 
             # Stage 7: Quality Validation
             start_t = time.perf_counter()
-            quality_results = quality_service.evaluate_document_quality(doc.id, db)
+            with trace_span("pipeline.quality_validation", {"document_id": doc.id}):
+                quality_results = quality_service.evaluate_document_quality(doc.id, db)
             duration_ms = int((time.perf_counter() - start_t) * 1000)
             fails = [q for q in quality_results if q.status == "fail"]
             warns = [q for q in quality_results if q.status == "warning"]

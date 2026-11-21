@@ -1,0 +1,160 @@
+# ============================================================
+# DataNexus v2.0.0 Production Docker Compose Orchestration
+# ============================================================
+# Orchestrates:
+#   1. PostgreSQL 16 (Relational Fact/Dimension & Lineage Store)
+#   2. Elasticsearch 8.11.3 (BM25 + Dense Vector Inverted Index)
+#   3. Redis 7 (Query & Deduplication Cache)
+#   4. FastAPI Backend (AI Pipeline, FlashRank Reranker, OTel)
+#   5. React 18 Frontend (Nginx SPA & Real-time SSE Reverse Proxy)
+# ============================================================
+
+version: '3.8'
+
+services:
+  # 1. Primary PostgreSQL 16 Relational Store
+  postgres:
+    image: postgres:16-alpine
+    container_name: datanexus_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-datanexus}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-datanexus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - datanexus_net
+
+  # 2. Elasticsearch 8.11 Cluster
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: datanexus_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 25s
+    networks:
+      - datanexus_net
+
+  # 3. Redis 7 Query & Deduplication Cache
+  redis:
+    image: redis:7-alpine
+    container_name: datanexus_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - datanexus_net
+
+  # 4. FastAPI Modular Monolith Backend (v2.0.0)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: datanexus_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-datanexus_prod_secret_key_change_me}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-datanexus}
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_INDEX=${ELASTICSEARCH_INDEX:-datanexus_documents}
+      - REDIS_URL=redis://redis:6379/0
+      - QUEUE_BROKER=redis
+      - RERANKER_ENABLED=${RERANKER_ENABLED:-true}
+      - RERANKER_MODEL=${RERANKER_MODEL:-ms-marco-MiniLM-L-12-v2}
+      - EMBEDDING_PROVIDER=sentence_transformers
+      - EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_SERVICE_NAME=datanexus-backend
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
+      - GROQ_FALLBACK_MODELS=${GROQ_FALLBACK_MODELS:-llama-3.3-70b-versatile,llama-3.1-8b-instant}
+      - API_KEY_ENABLED=${API_KEY_ENABLED:-false}
+      - API_KEY=${API_KEY:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:80,http://localhost:5173}
+    ports:
+      - "8008:8008"
+    volumes:
+      - storage_data:/app/data/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8008/api/health/liveness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - datanexus_net
+
+  # 5. React 18 / Vite Frontend with Nginx Reverse Proxy
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: datanexus_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - datanexus_net
+
+volumes:
+  postgres_data:
+    driver: local
+  es_data:
+    driver: local
+  redis_data:
+    driver: local
+  storage_data:
+    driver: local
+
+networks:
+  datanexus_net:
+    driver: bridge

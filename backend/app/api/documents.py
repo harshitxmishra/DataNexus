@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from backend.app.database import get_db
@@ -12,6 +12,7 @@ from backend.app.services.queue import queue_service
 from backend.app.services.search import search_service
 from backend.app.services.streaming import event_broadcaster
 from backend.app.services.pdf_evidence import pdf_evidence_service
+from backend.app.services.cache import cache_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -30,8 +31,17 @@ async def upload_document(
     file_hash, storage_path, file_size, filename, detected_type = await storage_service.save_upload(file)
 
     try:
-        # Duplicate detection by SHA-256 hash
-        existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
+        # v2.0.0: Check cache first for faster duplicate detection
+        cache_key = cache_service.make_hash_key(file_hash)
+        cached_doc_id = cache_service.get(cache_key)
+
+        if cached_doc_id:
+            existing_doc = db.query(Document).filter(Document.id == cached_doc_id).first()
+        else:
+            existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
+            if existing_doc:
+                cache_service.set(cache_key, existing_doc.id)
+
         is_duplicate = existing_doc is not None
         duplicate_of_id = existing_doc.id if is_duplicate else None
 
@@ -54,6 +64,9 @@ async def upload_document(
         db.add(doc)
         db.commit()
         db.refresh(doc)
+        # Cache master document ID for future duplicate lookups
+        if not is_duplicate:
+            cache_service.set(cache_key, doc.id)
     except Exception as exc:
         storage_service.delete_file(storage_path)
         raise exc
@@ -162,11 +175,20 @@ async def stream_document_events(document_id: str, db: Session = Depends(get_db)
 
 @router.get("/{document_id}/download")
 def download_document(document_id: str, db: Session = Depends(get_db)):
-    """Download original document binary file."""
+    """Download original document binary file or redirect to S3 presigned URL."""
     doc = db.query(Document).filter(Document.id == document_id).first()
-    if not doc or not os.path.isfile(doc.storage_path):
-        raise HTTPException(status_code=404, detail="Document or physical file not found.")
-    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    # v2.0.0: Check if storage backend provides direct/presigned download URL (e.g. S3)
+    presigned_url = storage_service.get_download_url(doc.storage_path, doc.original_name)
+    if presigned_url:
+        return RedirectResponse(url=presigned_url, status_code=307)
+
+    # Local fallback
+    if not os.path.isfile(doc.storage_path):
+        raise HTTPException(status_code=404, detail="Document physical file not found.")
+
     return FileResponse(
         path=doc.storage_path,
         filename=doc.original_name,

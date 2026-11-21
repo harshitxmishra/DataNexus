@@ -55,10 +55,29 @@ class Settings(BaseSettings):
     
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
+    CORS_ORIGINS: str = ""  # Comma-separated additional CORS origins for production
     
     # Security & API Key Authentication (Optional in development, strict in production)
     API_KEY_ENABLED: bool = False
     API_KEY: str = "datanexus_dev_api_key_2026"
+
+    # --- v2.0.0: Cross-Encoder Reranker (FlashRank ONNX) ---
+    RERANKER_ENABLED: bool = True
+    RERANKER_MODEL: str = "ms-marco-MiniLM-L-12-v2"
+    RERANKER_CACHE_DIR: str = ""
+
+    # --- v2.0.0: OpenTelemetry Distributed Tracing ---
+    OTEL_ENABLED: bool = False
+    OTEL_SERVICE_NAME: str = "datanexus"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+
+    # --- v2.0.0: Hybrid Storage Backend (S3 / Local) ---
+    STORAGE_BACKEND: str = "local"  # 'local' or 's3'
+    AWS_S3_BUCKET: str = ""
+    AWS_REGION: str = "us-east-1"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    S3_PRESIGNED_URL_EXPIRY: int = 3600  # seconds
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

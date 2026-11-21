@@ -756,23 +756,59 @@ class SearchService:
         db: Session,
         mode: str = "hybrid",
         top_k: int = 10,
-        doc_type_filter: Optional[str] = None
+        doc_type_filter: Optional[str] = None,
+        rerank: Optional[bool] = None
     ) -> Dict[str, Any]:
-        provider, provider_name = self.get_active_provider()
-        results, engine_label = provider.search(
-            query=query,
-            db=db,
-            mode=mode,
-            top_k=top_k,
-            doc_type_filter=doc_type_filter
-        )
+        """
+        Two-stage retrieval:
+          Stage 1 — BM25/kNN/hybrid RRF first-stage retrieval
+          Stage 2 — FlashRank cross-encoder reranking (if enabled)
+        """
+        from backend.app.telemetry import trace_span
+
+        with trace_span("search.first_stage", {"mode": mode, "top_k": top_k}):
+            provider, provider_name = self.get_active_provider()
+            # Over-fetch for reranker (2x top_k to give reranker good candidates)
+            should_rerank = rerank if rerank is not None else getattr(settings, "RERANKER_ENABLED", True)
+            fetch_k = top_k * 2 if should_rerank else top_k
+            
+            results, engine_label = provider.search(
+                query=query,
+                db=db,
+                mode=mode,
+                top_k=fetch_k,
+                doc_type_filter=doc_type_filter
+            )
+
+        result_dicts = [r.to_dict() for r in results]
+        reranked = False
+
+        # Stage 2: Cross-encoder reranking
+        if should_rerank and result_dicts:
+            with trace_span("search.rerank", {"num_candidates": len(result_dicts)}):
+                try:
+                    from backend.app.services.reranker import reranker_service
+                    if reranker_service.is_available:
+                        result_dicts = reranker_service.rerank(
+                            query=query,
+                            results=result_dicts,
+                            top_k=top_k
+                        )
+                        reranked = True
+                except Exception as e:
+                    logger.warning(f"Reranker integration failed: {e}")
+
+        # Trim to requested top_k
+        result_dicts = result_dicts[:top_k]
+
         return {
             "query": query,
             "provider": provider_name,
             "engine": engine_label,
             "retrieval_mode": mode,
-            "total_hits": len(results),
-            "results": [r.to_dict() for r in results]
+            "reranked": reranked,
+            "total_hits": len(result_dicts),
+            "results": result_dicts
         }
 
     def delete_document_chunks(self, document_id: str) -> int:
