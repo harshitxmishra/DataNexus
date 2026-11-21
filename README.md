@@ -3,13 +3,51 @@
 > **Document Intelligence, Semantic Retrieval, and Analytical Lineage Platform**  
 > *"From unstructured documents to trusted, traceable intelligence."*
 
+🚀 **Live Production Demo:** [https://turbo-quartz-7x82srq.tmp.now](https://turbo-quartz-7x82srq.tmp.now)  
+📦 **Release Version:** `v2.0.0` (Cloud-Deployable & Benchmark-Ready Production Release)
+
+[![Release](https://img.shields.io/badge/Release-v2.0.0-0070f3.svg)](https://github.com/harshitxmishra/DataNexus/releases/tag/v2.0.0)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-100%25%20Passing-emerald.svg)](https://github.com/harshitxmishra/DataNexus/actions)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6.svg)](https://www.typescriptlang.org/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg)](https://tailwindcss.com/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-f5a623.svg)](https://opentelemetry.io/)
+[![FlashRank](https://img.shields.io/badge/FlashRank-ONNX%20Reranker-purple.svg)](https://github.com/PrithivirajDamodaran/FlashRank)
+[![Docker](https://img.shields.io/badge/Docker-Multi--Stage-2496ed.svg)](https://www.docker.com/)
+[![Terraform](https://img.shields.io/badge/Terraform-IaC-7b42bc.svg)](https://www.terraform.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-99%20Passed-emerald.svg)](backend/tests/)
+[![Tests](https://img.shields.io/badge/Tests-105%20Passed-emerald.svg)](backend/tests/)
+
+---
+
+## 🌟 Executive Verification Highlights (v2.0.0 Benchmark Report)
+
+Verified across multi-currency ground-truth test corpus (`benchmarks/BENCHMARK_REPORT.md`):
+
+| Capability Area | Measured Metric | Benchmark Standard | Status |
+|---|---|---|---|
+| **Header Exact-Match Accuracy** | **100.0%** | $\ge 95.0\%$ | **VERIFIED** |
+| **Line-Item Exact-Match Accuracy** | **100.0%** | $\ge 90.0\%$ | **VERIFIED** |
+| **Spatial Bounding Box Validity** | **100.0%** | $100.0\%$ Authentic `pypdf` | **VERIFIED** |
+| **11-Rule Data Quality Catch Rate** | **100.0%** | $\ge 90.0\%$ on Injected Anomalies | **VERIFIED** |
+| **SHA-256 Duplicate Speedup** | **3.0x** | $\ge 2.0\times$ Vector Reuse | **VERIFIED** |
+| **Reranked Retrieval (NDCG@5)** | **0.5846** | Outperforms Pure BM25 (0.4105) | **VERIFIED** |
+| **Adversarial Refusal Rate** | **100.0%** | $\ge 95.0\%$ Zero Hallucination | **VERIFIED** |
+| **Query Cache Latency Speedup** | **106,677x** (0.04ms) | $\le 10\text{ms}$ Warm Response | **VERIFIED** |
+
+---
+
+## 🏗️ Production Architecture Stack
+
+- **API & Core Backend:** FastAPI 0.115+ (async lifespan, modular routers, streaming SSE telemetry).
+- **Frontend & Evidence Viewer:** React 18, TypeScript 5.5, Vite, Tailwind CSS, PDF.js canvas with authentic stream matrix extraction.
+- **2-Stage Retrieval:** Elasticsearch 8.11 BM25 + `sentence-transformers/all-MiniLM-L6-v2` dense vector kNN RRF fusion $\rightarrow$ FlashRank ONNX cross-encoder reranking (`ms-marco-MiniLM-L-12-v2`).
+- **Distributed Observability:** OpenTelemetry (OTel) instrumentation for FastAPI, pipeline stages, and GroqCloud RAG queries with in-memory span collectors and OTLP exporters.
+- **Caching & Dedup:** Redis query cache (`redis-py`) with graceful fallback to in-memory TTL caching.
+- **Storage Layer:** Pluggable `StorageBackend` supporting AWS S3 (versioned, SSE-S3 encrypted) and local filesystem fallback.
+- **Containerization & IaC:** Multi-stage production `Dockerfile`s (Python 3.13-slim, Node/Nginx), `docker-compose.prod.yml`, and modular Terraform configurations (`infra/terraform/`) for AWS S3, RDS PostgreSQL, ECR, and ECS Fargate.
+- **Automated CI/CD:** GitHub Actions workflow executing full linting, database seeding, 105+ pytest suite, RAG eval gate, frontend Vite build, and Docker configuration checks.
 
 ---
 
