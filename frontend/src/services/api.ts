@@ -20,19 +20,35 @@ import {
   DocumentEvidenceCoordinates
 } from '../types';
 
-const API_BASE = '/api';
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = RAW_BASE ? (RAW_BASE.endsWith('/') ? RAW_BASE.slice(0, -1) : RAW_BASE) + (RAW_BASE.includes('/api') ? '' : '/api') : '/api';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+function authHeaders(headers?: HeadersInit): HeadersInit {
+  const h = new Headers(headers || {});
+  if (API_KEY && !h.has('X-API-Key') && !h.has('Authorization')) {
+    h.set('X-API-Key', API_KEY);
+  }
+  return h;
+}
+
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const options: RequestInit = init ? { ...init } : {};
+  options.headers = authHeaders(options.headers);
+  return fetch(url, options);
+}
 
 export const api = {
   // System Health
   async getReadiness(): Promise<SystemReadiness> {
-    const res = await fetch(`${API_BASE}/health/readiness`);
+    const res = await apiFetch(`${API_BASE}/health/readiness`);
     if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
     return res.json();
   },
 
   // Overview Analytics
   async getOverviewMetrics(): Promise<OverviewMetrics> {
-    const res = await fetch(`${API_BASE}/analytics/overview`);
+    const res = await apiFetch(`${API_BASE}/analytics/overview`);
     if (!res.ok) throw new Error(`Failed to load overview: ${res.statusText}`);
     return res.json();
   },
@@ -44,13 +60,13 @@ export const api = {
     if (documentType) params.append('document_type', documentType);
     if (search) params.append('search', search);
     
-    const res = await fetch(`${API_BASE}/documents?${params.toString()}`);
+    const res = await apiFetch(`${API_BASE}/documents?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to list documents: ${res.statusText}`);
     return res.json();
   },
 
   async getDocument(id: string): Promise<DocumentDetail> {
-    const res = await fetch(`${API_BASE}/documents/${id}`);
+    const res = await apiFetch(`${API_BASE}/documents/${id}`);
     if (!res.ok) throw new Error(`Failed to get document detail: ${res.statusText}`);
     return res.json();
   },
@@ -60,13 +76,13 @@ export const api = {
   },
 
   async getDocumentEvidenceCoordinates(id: string): Promise<DocumentEvidenceCoordinates> {
-    const res = await fetch(`${API_BASE}/documents/${id}/evidence-coordinates`);
+    const res = await apiFetch(`${API_BASE}/documents/${id}/evidence-coordinates`);
     if (!res.ok) throw new Error(`Failed to load evidence coordinates: ${res.statusText}`);
     return res.json();
   },
 
   async uploadDocument(formData: FormData): Promise<DocumentDetail> {
-    const res = await fetch(`${API_BASE}/documents/upload`, {
+    const res = await apiFetch(`${API_BASE}/documents/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -78,7 +94,7 @@ export const api = {
   },
 
   async reprocessDocument(id: string): Promise<DocumentDetail> {
-    const res = await fetch(`${API_BASE}/documents/${id}/reprocess`, {
+    const res = await apiFetch(`${API_BASE}/documents/${id}/reprocess`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error(`Reprocess failed: ${res.statusText}`);
@@ -86,7 +102,7 @@ export const api = {
   },
 
   async deleteDocument(id: string): Promise<{ status: string; message: string }> {
-    const res = await fetch(`${API_BASE}/documents/${id}`, {
+    const res = await apiFetch(`${API_BASE}/documents/${id}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error(`Delete failed: ${res.statusText}`);
@@ -95,7 +111,7 @@ export const api = {
 
   // Search & QA
   async search(query: string, mode: string = 'hybrid', topK: number = 10, docType?: string): Promise<SearchResponse> {
-    const res = await fetch(`${API_BASE}/search/query`, {
+    const res = await apiFetch(`${API_BASE}/search/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, mode, top_k: topK, document_type: docType || undefined }),
@@ -105,7 +121,7 @@ export const api = {
   },
 
   async askQA(question: string, topK: number = 5, docType?: string): Promise<QAResponse> {
-    const res = await fetch(`${API_BASE}/search/qa`, {
+    const res = await apiFetch(`${API_BASE}/search/qa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question, top_k: topK, document_type: docType || undefined }),
@@ -124,20 +140,20 @@ export const api = {
     fallback_active: boolean;
     cluster_info?: any;
   }> {
-    const res = await fetch(`${API_BASE}/search/status`);
+    const res = await apiFetch(`${API_BASE}/search/status`);
     if (!res.ok) throw new Error(`Search status failed: ${res.statusText}`);
     return res.json();
   },
 
   // Data Platform
   async listPipelineRuns(): Promise<PipelineRun[]> {
-    const res = await fetch(`${API_BASE}/data-platform/pipeline/runs`);
+    const res = await apiFetch(`${API_BASE}/data-platform/pipeline/runs`);
     if (!res.ok) throw new Error(`Failed to fetch pipeline runs: ${res.statusText}`);
     return res.json();
   },
 
   async triggerPipeline(): Promise<PipelineRun> {
-    const res = await fetch(`${API_BASE}/data-platform/pipeline/run`, {
+    const res = await apiFetch(`${API_BASE}/data-platform/pipeline/run`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error(`Pipeline run failed: ${res.statusText}`);
@@ -149,13 +165,13 @@ export const api = {
     if (status) params.append('status', status);
     if (category) params.append('rule_category', category);
 
-    const res = await fetch(`${API_BASE}/data-platform/quality/results?${params.toString()}`);
+    const res = await apiFetch(`${API_BASE}/data-platform/quality/results?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to fetch quality results: ${res.statusText}`);
     return res.json();
   },
 
   async getQualityScorecard(): Promise<DetailedScorecard> {
-    const res = await fetch(`${API_BASE}/data-platform/quality/scorecard`);
+    const res = await apiFetch(`${API_BASE}/data-platform/quality/scorecard`);
     if (!res.ok) throw new Error(`Failed to fetch scorecard: ${res.statusText}`);
     return res.json();
   },
@@ -176,7 +192,7 @@ export const api = {
 
   async getDocumentLineage(documentId: string, direction: string = 'document', maxDepth: number = 6): Promise<LineageGraph> {
     const params = new URLSearchParams({ direction, max_depth: String(maxDepth) });
-    const res = await fetch(`${API_BASE}/lineage/document/${documentId}?${params.toString()}`);
+    const res = await apiFetch(`${API_BASE}/lineage/document/${documentId}?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to fetch lineage: ${res.statusText}`);
     return res.json();
   },
@@ -187,13 +203,13 @@ export const api = {
     nodes_by_type: Record<string, number>;
     edges_by_rule: Record<string, number>;
   }> {
-    const res = await fetch(`${API_BASE}/lineage/summary`);
+    const res = await apiFetch(`${API_BASE}/lineage/summary`);
     if (!res.ok) throw new Error(`Failed to fetch lineage summary: ${res.statusText}`);
     return res.json();
   },
 
   async ingestCsv(formData: FormData): Promise<any> {
-    const res = await fetch(`${API_BASE}/data-platform/csv/ingest`, {
+    const res = await apiFetch(`${API_BASE}/data-platform/csv/ingest`, {
       method: 'POST',
       body: formData,
     });
@@ -203,25 +219,25 @@ export const api = {
 
   // Business Intelligence & Semantic Models
   async getVendorSpend(): Promise<VendorSpendItem[]> {
-    const res = await fetch(`${API_BASE}/analytics/vendor-spend`);
+    const res = await apiFetch(`${API_BASE}/analytics/vendor-spend`);
     if (!res.ok) throw new Error(`Failed to load vendor spend: ${res.statusText}`);
     return res.json();
   },
 
   async getOverdueInvoices(): Promise<OverdueInvoiceItem[]> {
-    const res = await fetch(`${API_BASE}/analytics/overdue-invoices`);
+    const res = await apiFetch(`${API_BASE}/analytics/overdue-invoices`);
     if (!res.ok) throw new Error(`Failed to load overdue invoices: ${res.statusText}`);
     return res.json();
   },
 
   async getSpendTrends(): Promise<SpendTrendItem[]> {
-    const res = await fetch(`${API_BASE}/analytics/spend-trends`);
+    const res = await apiFetch(`${API_BASE}/analytics/spend-trends`);
     if (!res.ok) throw new Error(`Failed to load spend trends: ${res.statusText}`);
     return res.json();
   },
 
   async getProcessingPerformance(): Promise<ProcessingPerformanceMetric[]> {
-    const res = await fetch(`${API_BASE}/analytics/processing-performance`);
+    const res = await apiFetch(`${API_BASE}/analytics/processing-performance`);
     if (!res.ok) throw new Error(`Failed to load processing metrics: ${res.statusText}`);
     return res.json();
   },
@@ -230,32 +246,32 @@ export const api = {
     total_duplicates_detected: number;
     candidates: any[];
   }> {
-    const res = await fetch(`${API_BASE}/analytics/duplicate-candidates`);
+    const res = await apiFetch(`${API_BASE}/analytics/duplicate-candidates`);
     if (!res.ok) throw new Error(`Failed to load duplicates: ${res.statusText}`);
     return res.json();
   },
 
   async listAnalyticalViews(): Promise<{ views: AnalyticalViewItem[] }> {
-    const res = await fetch(`${API_BASE}/analytics/views`);
+    const res = await apiFetch(`${API_BASE}/analytics/views`);
     if (!res.ok) throw new Error(`Failed to list analytical views: ${res.statusText}`);
     return res.json();
   },
 
   async queryAnalyticalView(viewName: string, skip: number = 0, limit: number = 50): Promise<AnalyticalViewData> {
     const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-    const res = await fetch(`${API_BASE}/analytics/views/${viewName}?${params.toString()}`);
+    const res = await apiFetch(`${API_BASE}/analytics/views/${viewName}?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to query view ${viewName}: ${res.statusText}`);
     return res.json();
   },
 
   async getPowerBiSemanticModel(): Promise<PowerBiSemanticModel> {
-    const res = await fetch(`${API_BASE}/analytics/powerbi/semantic-model`);
+    const res = await apiFetch(`${API_BASE}/analytics/powerbi/semantic-model`);
     if (!res.ok) throw new Error(`Failed to load Power BI semantic model: ${res.statusText}`);
     return res.json();
   },
 
   async getPowerBiMQueries(): Promise<PowerBiMQueriesResponse> {
-    const res = await fetch(`${API_BASE}/analytics/powerbi/m-queries`);
+    const res = await apiFetch(`${API_BASE}/analytics/powerbi/m-queries`);
     if (!res.ok) throw new Error(`Failed to load Power BI M queries: ${res.statusText}`);
     return res.json();
   },

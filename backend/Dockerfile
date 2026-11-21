@@ -81,9 +81,10 @@ RUN mkdir -p /app/data/storage /app/data/exports /app/data/staging && \
 
 USER datanexus
 
-EXPOSE 8008
+ENV PORT=8000
+EXPOSE 8000 8008
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8008/api/health/liveness || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || curl -f http://localhost:8008/api/health/liveness || exit 1
 
-ENTRYPOINT ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8008"]
+CMD ["sh", "-c", "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

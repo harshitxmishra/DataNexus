@@ -1,0 +1,41 @@
+# ============================================================
+# DataNexus v2.0.0 — Render Blueprint Specification
+# 1-Click Dockerized FastAPI Backend Deployment
+# ============================================================
+
+services:
+  - type: web
+    name: datanexus-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: standard
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: STORAGE_BACKEND
+        value: local
+      - key: RERANKER_ENABLED
+        value: "true"
+      - key: RERANKER_MODEL
+        value: ms-marco-MiniLM-L-12-v2
+      - key: EMBEDDING_PROVIDER
+        value: sentence_transformers
+      - key: EMBEDDING_MODEL_NAME
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: CORS_ORIGINS
+        value: "https://datanexus.vercel.app,https://datanexus-app.vercel.app,http://localhost:5173,http://localhost"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: GROQ_FALLBACK_MODELS
+        value: llama-3.3-70b-versatile,llama-3.1-8b-instant
+      - key: API_KEY
+        generateValue: true
+      - key: API_KEY_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false

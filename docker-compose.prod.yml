@@ -91,6 +91,7 @@ services:
         condition: service_healthy
     environment:
       - ENVIRONMENT=production
+      - PORT=8008
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - SECRET_KEY=${SECRET_KEY:-datanexus_prod_secret_key_change_me}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-datanexus}
