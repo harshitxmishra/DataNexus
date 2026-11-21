@@ -1,13 +1,14 @@
-import time
-import json
-import re
 import logging
-from typing import List, Dict, Any, Optional
+import re
+import time
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
 from backend.app.config import settings
-from backend.app.services.search import search_service
-from backend.app.services.groq_service import groq_rag_service
 from backend.app.services.cache import cache_service
+from backend.app.services.groq_service import groq_rag_service
+from backend.app.services.search import search_service
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,10 @@ class DocumentQAService:
             top_k=top_k,
             doc_type_filter=doc_type_filter
         )
-        
+
         hits = search_res.get("results", [])
         reranked = search_res.get("reranked", False)
-        
+
         # 2. Check for insufficiency
         # If no hits or top hit has 0 lexical overlap and below relevance threshold
         if not hits or (hits[0].get("lexical_score", 0.0) == 0.0 and hits[0].get("score", 0.0) < 0.25):
@@ -155,7 +156,7 @@ class DocumentQAService:
                         }
                         cache_service.set(cache_key, result)
                         return result
-            except Exception as e:
+            except Exception:
                 # Log and fallback to extractive synthesis
                 pass
 

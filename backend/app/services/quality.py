@@ -1,10 +1,11 @@
-from datetime import datetime, date, timedelta, timezone
-from typing import List, Dict, Any, Optional
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
-from backend.app.models.document import Document, ExtractedField, DocumentChunk
+
 from backend.app.models.data_platform import DataQualityResult
-from backend.app.models.analytics import FactInvoice, DimVendor
+from backend.app.models.document import Document
 
 STANDARD_CURRENCIES = {"USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CHF", "CNY"}
 

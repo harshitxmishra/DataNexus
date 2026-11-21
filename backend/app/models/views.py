@@ -1,4 +1,4 @@
-from sqlalchemy import text, Engine
+from sqlalchemy import Engine, text
 
 POSTGRESQL_VIEWS_SQL = [
     # 1. Daily Ingestion View

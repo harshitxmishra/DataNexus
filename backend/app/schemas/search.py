@@ -1,5 +1,7 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class SearchQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Search term or sentence")

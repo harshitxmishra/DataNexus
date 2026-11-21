@@ -1,16 +1,20 @@
-from typing import List, Dict, Any, Optional
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
+from sqlalchemy import case, desc, func, text
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, case, text
-from backend.app.database import get_db, engine
+
+from backend.app.database import engine, get_db
+from backend.app.models.analytics import DimDate, DimVendor, FactDocumentProcessing, FactInvoice
+from backend.app.models.data_platform import DataQualityResult, PipelineRun
 from backend.app.models.document import Document, DocumentChunk
-from backend.app.models.data_platform import PipelineRun, DataQualityResult
-from backend.app.models.analytics import (
-    FactInvoice, DimVendor, DimDate, FactDocumentProcessing
-)
 from backend.app.schemas.analytics import (
-    OverviewMetrics, VendorSpendItem, OverdueInvoiceItem, SpendTrendItem, ProcessingPerformanceMetric
+    OverdueInvoiceItem,
+    OverviewMetrics,
+    ProcessingPerformanceMetric,
+    SpendTrendItem,
+    VendorSpendItem,
 )
 
 router = APIRouter(prefix="/analytics", tags=["Business Intelligence & Analytics"])

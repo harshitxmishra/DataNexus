@@ -1,20 +1,25 @@
-import io
 import csv
+import io
 import json
 import time
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, Response
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+
 from backend.app.database import get_db
+from backend.app.models.analytics import DimDate, DimVendor, FactInvoice
+from backend.app.models.data_platform import DataQualityResult, PipelineRun, RejectedRecord, StagedCsvRecord
 from backend.app.models.document import Document
-from backend.app.models.data_platform import PipelineRun, DataQualityResult, RejectedRecord, StagedCsvRecord
-from backend.app.models.analytics import FactInvoice, DimVendor, DimDate
 from backend.app.schemas.data_platform import (
-    PipelineRunResponse, DataQualityResultResponse, RejectedRecordResponse,
-    DetailedScorecardResponse, QualityEvaluationTriggerResponse
+    DataQualityResultResponse,
+    DetailedScorecardResponse,
+    PipelineRunResponse,
+    QualityEvaluationTriggerResponse,
+    RejectedRecordResponse,
 )
 from backend.app.services.pipeline import pipeline_service
 from backend.app.services.quality import quality_service

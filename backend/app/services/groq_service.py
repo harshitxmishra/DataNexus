@@ -1,6 +1,7 @@
-import time
 import logging
-from typing import List, Dict, Any, Optional
+import time
+from typing import Any, Dict, List, Optional
+
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)

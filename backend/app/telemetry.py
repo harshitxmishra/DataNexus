@@ -10,7 +10,7 @@ with spans. Supports:
 
 import logging
 from contextlib import contextmanager
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from backend.app.config import settings
 
@@ -35,12 +35,9 @@ def setup_telemetry(app=None):
 
     try:
         from opentelemetry import trace
-        from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace.export import (
-            SimpleSpanProcessor,
-            BatchSpanProcessor,
-        )
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
         service_name = getattr(settings, "OTEL_SERVICE_NAME", "datanexus")
         resource = Resource.create({"service.name": service_name})

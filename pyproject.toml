@@ -1,0 +1,27 @@
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line length handled by formatters / long strings
+    "B008",  # do not perform function calls in argument defaults (FastAPI Depends)
+    "E712",  # avoid equality comparisons to True (SQLAlchemy column expressions require == True)
+    "E741",  # ambiguous variable name
+    "F841",  # local variable assigned but never used
+    "W291",  # trailing whitespace in SQL docstrings
+    "W293",  # blank line contains whitespace
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["backend/tests"]
+python_files = ["test_*.py"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]

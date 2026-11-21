@@ -9,13 +9,13 @@ Gated behind STORAGE_BACKEND=s3|local (default: local).
 """
 
 import hashlib
-import io
 import logging
 import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Tuple
+
 from fastapi import HTTPException, UploadFile
 
 from backend.app.config import settings
@@ -152,7 +152,7 @@ class S3StorageBackend(StorageBackend):
 
         ext = os.path.splitext(filename)[1].lower() or ".bin"
         s3_key = f"documents/{file_hash[:16]}_{filename}"
-        
+
         content_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
 
         try:
@@ -284,7 +284,7 @@ class StorageService:
 
         # In S3 mode, also ensure local cached copy exists so pypdf can stream/read locally if needed
         storage_path = self._backend.save(content, filename, file_hash)
-        
+
         # If storing in S3, keep a local copy in local storage dir for fast offline parsing
         if isinstance(self._backend, S3StorageBackend):
             try:

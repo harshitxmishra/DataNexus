@@ -1,7 +1,8 @@
 import json
 import logging
 import threading
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 from sklearn.feature_extraction.text import HashingVectorizer
 from sqlalchemy.orm import Session
@@ -129,7 +130,7 @@ class PretrainedNeuralEmbeddingService:
             try:
                 from sentence_transformers import SentenceTransformer
                 logger.info(f"Loading pretrained embedding model '{self.model_name}' on device '{self.device}'...")
-                
+
                 kwargs: Dict[str, Any] = {"device": self.device}
                 if self.cache_dir:
                     kwargs["cache_folder"] = self.cache_dir

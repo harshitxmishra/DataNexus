@@ -51,7 +51,7 @@ def test_search_and_qa_api(client):
     assert len(res["results"]) > 0
 
     # QA
-    qa_payload = {"question": "What services does Global Logistics Partner provide?", "top_k": 3}
+    qa_payload = {"question": "What line items or services are billed on the Global Logistics invoice?", "top_k": 3}
     r_qa = client.post("/api/search/qa", json=qa_payload)
     assert r_qa.status_code == 200
     qa_res = r_qa.json()

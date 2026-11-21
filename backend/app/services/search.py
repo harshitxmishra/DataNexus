@@ -1,15 +1,15 @@
 import json
 import logging
-import math
 import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Tuple
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional, Tuple
+
 from elasticsearch import Elasticsearch, helpers
+from sqlalchemy.orm import Session
 
 from backend.app.config import settings
-from backend.app.services.embeddings import embedding_service
 from backend.app.models.document import Document, DocumentChunk
+from backend.app.services.embeddings import embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -607,7 +607,7 @@ class LocalSearchProvider(BaseSearchProvider):
         doc_type_filter: Optional[str] = None
     ) -> Tuple[List[SearchResult], str]:
         query_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 1]
-        
+
         query_vector = None
         vector_available = False
         if mode in ("semantic", "hybrid"):
@@ -771,7 +771,7 @@ class SearchService:
             # Over-fetch for reranker (2x top_k to give reranker good candidates)
             should_rerank = rerank if rerank is not None else getattr(settings, "RERANKER_ENABLED", True)
             fetch_k = top_k * 2 if should_rerank else top_k
-            
+
             results, engine_label = provider.search(
                 query=query,
                 db=db,

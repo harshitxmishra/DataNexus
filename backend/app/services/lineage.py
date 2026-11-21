@@ -1,10 +1,13 @@
-from typing import Dict, Any, List, Set, Optional
 from collections import deque
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Set
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from backend.app.models.analytics import FactInvoice
 from backend.app.models.data_platform import LineageEdge
 from backend.app.models.document import Document, ExtractedField
-from backend.app.models.analytics import FactInvoice, DimVendor
+
 
 class LineageService:
     def get_document_lineage(

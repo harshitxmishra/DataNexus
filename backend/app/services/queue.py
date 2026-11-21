@@ -1,16 +1,25 @@
 import json
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any
+
 from sqlalchemy.orm import Session
-from backend.app.models.document import Document, DocumentStageEvent, DocumentChunk, ExtractedField, InvoiceLineItem, QueueJob
+
 from backend.app.models.analytics import FactDocumentProcessing
-from backend.app.services.extraction import extraction_service
+from backend.app.models.document import (
+    Document,
+    DocumentChunk,
+    DocumentStageEvent,
+    ExtractedField,
+    InvoiceLineItem,
+    QueueJob,
+)
 from backend.app.services.embeddings import embedding_service
-from backend.app.services.search import search_service
+from backend.app.services.extraction import extraction_service
 from backend.app.services.pipeline import pipeline_service
 from backend.app.services.quality import quality_service
+from backend.app.services.search import search_service
 from backend.app.services.streaming import event_broadcaster
+
 
 class ProcessingQueueService:
     def enqueue_document_processing(self, document_id: str, db: Session) -> QueueJob:
@@ -72,8 +81,8 @@ class ProcessingQueueService:
             doc.page_count = ext_result.total_pages
             doc.character_count = ext_result.total_chars
             doc.extraction_confidence = ext_result.overall_confidence
-            
-            self._record_stage(doc.id, "text_extraction", "completed", duration_ms, 
+
+            self._record_stage(doc.id, "text_extraction", "completed", duration_ms,
                                f"Extracted {ext_result.total_pages} page(s), {ext_result.total_chars} chars. OCR: {ext_result.ocr_used}", db)
 
             # Stage 2: Field & Line Item Extraction
@@ -183,7 +192,7 @@ class ProcessingQueueService:
                     for chunk_obj in chunks_to_add:
                         chunk_obj.indexed_in_es = False  # Pending Elasticsearch outbox indexing
                     duration_ms = int((time.perf_counter() - start_t) * 1000)
-                    self._record_stage(doc.id, "indexing", "completed", duration_ms, 
+                    self._record_stage(doc.id, "indexing", "completed", duration_ms,
                                        f"Elasticsearch offline. {len(chunks_to_add)} chunk(s) stored in database; local search fallback active.", db)
 
             # Stage 6: Analytical ETL Transformations
@@ -265,7 +274,7 @@ class ProcessingQueueService:
                 doc.status = "failed"
                 doc.error_message = str(e)
                 doc.error_category = "processing_exception"
-                
+
                 total_duration_ms = int((time.perf_counter() - pipeline_start) * 1000)
                 fact_proc = db.query(FactDocumentProcessing).filter(FactDocumentProcessing.document_id == doc.id).first()
                 if not fact_proc:

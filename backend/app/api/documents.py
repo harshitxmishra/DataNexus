@@ -1,18 +1,20 @@
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
+
 from backend.app.database import get_db
 from backend.app.models.document import Document
-from backend.app.schemas.document import DocumentListItem, DocumentDetail
-from backend.app.services.storage import storage_service
+from backend.app.schemas.document import DocumentDetail, DocumentListItem
+from backend.app.services.cache import cache_service
+from backend.app.services.pdf_evidence import pdf_evidence_service
 from backend.app.services.queue import queue_service
 from backend.app.services.search import search_service
+from backend.app.services.storage import storage_service
 from backend.app.services.streaming import event_broadcaster
-from backend.app.services.pdf_evidence import pdf_evidence_service
-from backend.app.services.cache import cache_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -75,7 +77,7 @@ async def upload_document(
         try:
             queue_service.execute_document_pipeline(doc.id, db)
             db.refresh(doc)
-        except Exception as e:
+        except Exception:
             # Lifecycle sets status='failed'
             db.refresh(doc)
 
@@ -134,7 +136,7 @@ def get_document_evidence_coordinates(document_id: str, db: Session = Depends(ge
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
-    
+
     return pdf_evidence_service.extract_document_evidence_coordinates(doc)
 
 @router.get("/{document_id}/events/stream")

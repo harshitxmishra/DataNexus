@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from backend.app.database import get_db, check_database_connection
-from backend.app.services.search import search_service
-from backend.app.services.embeddings import embedding_service
+
 from backend.app.config import settings
+from backend.app.database import check_database_connection, get_db
+from backend.app.services.embeddings import embedding_service
+from backend.app.services.search import search_service
 
 router = APIRouter(prefix="/health", tags=["System Health"])
 
@@ -17,7 +18,7 @@ def readiness(db: Session = Depends(get_db)):
     """Deep readiness probe checking core dependencies and active providers."""
     db_status = check_database_connection()
     es_available = search_service.es_provider.is_available()
-    
+
     # Test local embedding capability
     embedding_ready = False
     try:

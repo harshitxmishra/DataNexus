@@ -1,16 +1,14 @@
-import os
 import hashlib
 from pathlib import Path
-from datetime import datetime
+
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from reportlab.lib import colors
 
 from backend.app.config import BASE_DIR, settings
-from backend.app.database import SessionLocal, Base, engine
-from backend.app.models.views import init_analytical_views
+from backend.app.database import Base, SessionLocal, engine
 from backend.app.models.document import Document
-from backend.app.models.data_platform import StagedCsvRecord
+from backend.app.models.views import init_analytical_views
 from backend.app.services.queue import queue_service
 
 INVOICE_SAMPLES = [
@@ -141,7 +139,7 @@ def generate_pdf_invoice(filepath: str, data: dict):
 
     c.drawString(380, height - 140, f"Payment Status: {data['status']}")
     c.drawString(380, height - 155, f"Currency: {data['currency']}")
-    c.drawString(380, height - 170, f"Verification: Synthetic Demonstration Seed")
+    c.drawString(380, height - 170, "Verification: Synthetic Demonstration Seed")
 
     # Table Header
     c.setFillColor(colors.HexColor("#f1f5f9"))
@@ -211,7 +209,7 @@ def seed_database():
     for sample in INVOICE_SAMPLES:
         pdf_path = sample_dir / sample["filename"]
         generate_pdf_invoice(str(pdf_path), sample)
-        
+
         # Read content to calculate hash
         with open(pdf_path, "rb") as f:
             content = f.read()

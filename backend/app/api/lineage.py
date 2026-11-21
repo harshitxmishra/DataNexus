@@ -1,6 +1,6 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+
 from backend.app.database import get_db
 from backend.app.schemas.data_platform import LineageGraphResponse, LineageSummaryResponse
 from backend.app.services.lineage import lineage_service

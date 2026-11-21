@@ -1,8 +1,9 @@
 import re
-from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
 from pypdf import PdfReader
-from backend.app.config import settings
+
 
 class ExtractedFieldData:
     def __init__(

@@ -1,5 +1,7 @@
-from typing import List, Optional, Dict, Any
+from typing import Optional
+
 from pydantic import BaseModel
+
 
 class OverviewMetrics(BaseModel):
     total_documents: int

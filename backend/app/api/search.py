@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+
 from backend.app.database import get_db
-from backend.app.schemas.search import (
-    SearchQueryRequest, SearchResponse, QARequest, QAResponse
-)
-from backend.app.services.search import search_service
+from backend.app.schemas.search import QARequest, QAResponse, SearchQueryRequest, SearchResponse
 from backend.app.services.qa import qa_service
-from backend.app.models.document import DocumentChunk
+from backend.app.services.search import search_service
 
 router = APIRouter(prefix="/search", tags=["Search & Intelligence"])
 

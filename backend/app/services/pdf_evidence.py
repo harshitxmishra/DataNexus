@@ -1,8 +1,11 @@
 import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from pypdf import PdfReader
+
 from backend.app.models.document import Document
+
 
 class PDFEvidenceService:
     """
@@ -162,7 +165,7 @@ class PDFEvidenceService:
                 t = el["text"].strip()
                 if re.search(val_esc, t, re.IGNORECASE):
                     return self._format_bbox(el)
-            
+
             # Numeric/currency relaxation: e.g. "8500.00" in "USD 8500.00" or "$8,500.00"
             clean_num = re.sub(r"[^\d.]", "", val_raw)
             if len(clean_num) >= 3:

@@ -9,7 +9,7 @@ Gated behind RERANKER_ENABLED config flag for A/B benchmarking.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from backend.app.config import settings
 

@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, Index
-)
+
+from sqlalchemy import Column, DateTime, Integer, String, Text
+
 from backend.app.database import Base
+
 
 def generate_uuid() -> str:
     return str(uuid.uuid4())
@@ -15,16 +16,16 @@ class PipelineRun(Base):
     pipeline_name = Column(String(100), nullable=False, index=True)
     batch_id = Column(String(100), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="running")  # running, success, failed, partially_completed
-    
+
     start_time = Column(DateTime, default=datetime.utcnow)
     end_time = Column(DateTime, nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    
+
     rows_read = Column(Integer, default=0)
     rows_inserted = Column(Integer, default=0)
     rows_updated = Column(Integer, default=0)
     rows_rejected = Column(Integer, default=0)
-    
+
     source_range = Column(String(255), nullable=True)
     error_details = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -37,10 +38,10 @@ class DataQualityResult(Base):
     rule_category = Column(String(100), nullable=False)  # completeness, accuracy, uniqueness, consistency, referential_integrity
     evaluated_entity_type = Column(String(100), nullable=False)  # document, invoice, csv_row, pipeline_batch
     evaluated_entity_id = Column(String(100), nullable=False, index=True)
-    
+
     status = Column(String(50), nullable=False)  # pass, fail, warning
     severity = Column(String(50), nullable=False, default="medium")  # critical, high, medium, low
-    
+
     metric_value = Column(String(255), nullable=True)
     threshold = Column(String(255), nullable=True)
     details = Column(Text, nullable=True)

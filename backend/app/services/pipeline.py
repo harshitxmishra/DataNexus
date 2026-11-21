@@ -1,15 +1,14 @@
-import uuid
 import time
-from datetime import datetime, date
-from typing import Dict, Any, List, Optional
+from datetime import date, datetime
+from typing import Dict, Optional
+
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from backend.app.models.document import Document, ExtractedField, InvoiceLineItem
-from backend.app.models.data_platform import PipelineRun, LineageEdge
-from backend.app.models.analytics import (
-    DimVendor, DimDate, FactInvoice, FactInvoiceLine, FactDocumentProcessing, FactPipelineRun
-)
+
+from backend.app.models.analytics import DimDate, DimVendor, FactInvoice, FactInvoiceLine, FactPipelineRun
+from backend.app.models.data_platform import LineageEdge, PipelineRun
+from backend.app.models.document import Document, ExtractedField
 from backend.app.services.quality import quality_service
+
 
 def date_to_key(dt: date) -> int:
     return int(dt.strftime("%Y%m%d"))
@@ -57,7 +56,7 @@ class DataPipelineService:
         """
         start_time = time.perf_counter()
         batch_id = batch_id or f"batch_{int(time.time())}"
-        
+
         pipeline_run = PipelineRun(
             pipeline_name="invoice_dimensional_etl",
             batch_id=batch_id,
@@ -82,7 +81,7 @@ class DataPipelineService:
         for doc in docs:
             try:
                 fields = {f.field_name: f for f in doc.extracted_fields}
-                
+
                 # Check for required fields; if missing invoice_number and total, skip/reject
                 if "invoice_number" not in fields and "total_amount" not in fields:
                     rows_rejected += 1
@@ -90,7 +89,7 @@ class DataPipelineService:
 
                 inv_num = fields.get("invoice_number", ExtractedField(field_value=f"INV-{doc.id[:8]}")).field_value
                 vendor_name = fields.get("vendor_name", ExtractedField(field_value="Acme Supplier")).field_value
-                
+
                 # Ensure vendor dimension
                 vendor_dim = self.ensure_vendor_dim(vendor_name, db)
 
@@ -120,7 +119,7 @@ class DataPipelineService:
 
                 # Monetary Amounts
                 currency = fields.get("currency", ExtractedField(normalized_value="USD")).normalized_value or "USD"
-                
+
                 def parse_float(val: Optional[str], default: float = 0.0) -> float:
                     if not val:
                         return default
@@ -267,7 +266,7 @@ class DataPipelineService:
                     transformation_rule="bi.sum_overdue"
                 )
             ])
-        
+
         # Link extracted fields to fact
         for field_name, f_obj in fields.items():
             edges.append(LineageEdge(

@@ -1,26 +1,26 @@
+from backend.app.models.analytics import (
+    DimDate,
+    DimVendor,
+    FactDataQuality,
+    FactDocumentProcessing,
+    FactInvoice,
+    FactInvoiceLine,
+    FactPipelineRun,
+)
+from backend.app.models.data_platform import (
+    DataQualityResult,
+    LineageEdge,
+    PipelineRun,
+    RejectedRecord,
+    StagedCsvRecord,
+)
 from backend.app.models.document import (
     Document,
-    DocumentStageEvent,
     DocumentChunk,
+    DocumentStageEvent,
     ExtractedField,
     InvoiceLineItem,
     QueueJob,
-)
-from backend.app.models.data_platform import (
-    PipelineRun,
-    DataQualityResult,
-    RejectedRecord,
-    LineageEdge,
-    StagedCsvRecord,
-)
-from backend.app.models.analytics import (
-    DimVendor,
-    DimDate,
-    FactInvoice,
-    FactInvoiceLine,
-    FactDocumentProcessing,
-    FactDataQuality,
-    FactPipelineRun,
 )
 
 __all__ = [

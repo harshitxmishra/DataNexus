@@ -1,9 +1,12 @@
 import time
-from typing import Generator, Dict, Any
+from typing import Any, Dict, Generator
 from urllib.parse import urlparse
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
 from backend.app.config import settings
+
 
 def normalize_database_url(url: str) -> str:
     """Normalize database URL to ensure appropriate dialect and driver."""

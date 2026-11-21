@@ -1,10 +1,10 @@
-import uuid
-from datetime import datetime, date
-from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Index
-)
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from backend.app.database import Base
+
 
 class DimVendor(Base):
     """
@@ -56,20 +56,20 @@ class FactInvoice(Base):
     invoice_key = Column(Integer, primary_key=True, autoincrement=True)
     document_id = Column(String(36), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     invoice_number = Column(String(100), nullable=False, index=True)
-    
+
     vendor_key = Column(Integer, ForeignKey("dim_vendor.vendor_key"), nullable=False, index=True)
     invoice_date_key = Column(Integer, ForeignKey("dim_date.date_key"), nullable=False, index=True)
     due_date_key = Column(Integer, ForeignKey("dim_date.date_key"), nullable=True, index=True)
-    
+
     currency = Column(String(10), nullable=False, default="USD", index=True)
     subtotal = Column(Float, nullable=False, default=0.0)
     tax_amount = Column(Float, nullable=False, default=0.0)
     total_amount = Column(Float, nullable=False, default=0.0)
-    
+
     payment_status = Column(String(50), nullable=False, default="Pending", index=True)  # Paid, Pending, Overdue, Disputed
     is_overdue = Column(Boolean, default=False, index=True)
     days_overdue = Column(Integer, default=0)
-    
+
     extraction_confidence = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

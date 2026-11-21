@@ -9,18 +9,14 @@ Evaluates and compares:
 Grounded in canonical DataNexus business documents and invoice fixtures.
 Computes Recall@k (k=1, 3, 5), MRR, Precision@k, and latency.
 """
-import time
-import math
 import re
-from typing import List, Dict, Any, Optional, Set
-import numpy as np
+import time
+from typing import Any, Dict, List
 
 from backend.app.services.embeddings import (
-    embedding_service,
+    InterimHashingEmbeddingService,
     PretrainedNeuralEmbeddingService,
-    InterimHashingEmbeddingService
 )
-
 
 # 1. Grounded Benchmark Corpus (13 chunks across 6 business documents)
 BENCHMARK_CHUNKS = [
@@ -390,7 +386,7 @@ def run_full_retrieval_benchmark() -> Dict[str, Any]:
         # Standard positive queries (q1 through q9)
         positive_evals = [r for r in results_by_approach[app] if r["is_negative_query"] == 0.0]
         n_pos = len(positive_evals)
-        
+
         avg_r1 = sum(r["recall@1"] for r in positive_evals) / n_pos
         avg_r3 = sum(r["recall@3"] for r in positive_evals) / n_pos
         avg_r5 = sum(r["recall@5"] for r in positive_evals) / n_pos
