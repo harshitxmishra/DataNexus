@@ -49,6 +49,15 @@ jobs:
         run: |
           ruff check backend/app/ --exit-zero
 
+      - name: Seed Test Database
+        env:
+          PYTHONPATH: .
+          ENVIRONMENT: test
+          DATABASE_URL: sqlite:///./datanexus_test.db
+          STORAGE_BACKEND: "local"
+        run: |
+          python scripts/seed_database.py
+
       - name: Execute Pytest Suite & RAG Eval Gate
         env:
           PYTHONPATH: .
