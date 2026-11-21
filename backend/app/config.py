@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -8,14 +9,14 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
     SECRET_KEY: str = "datanexus_dev_secret_key_change_in_production"
-    
+
     # Storage
     STORAGE_DIR: str = str(BASE_DIR / "data" / "storage")
     MAX_UPLOAD_SIZE_MB: int = 25
-    
+
     # Database (PostgreSQL or SQLite fallback for immediate local testing)
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'datanexus.db'}"
-    
+
     # Elasticsearch
     ELASTICSEARCH_URL: str = "http://localhost:9200"
     ELASTICSEARCH_INDEX: str = "datanexus_documents"
@@ -26,11 +27,11 @@ class Settings(BaseSettings):
     ELASTICSEARCH_VERIFY_CERTS: bool = True
     ELASTICSEARCH_MAX_RETRIES: int = 1
     ELASTICSEARCH_RETRY_ON_TIMEOUT: bool = True
-    
+
     # Queue
     QUEUE_BROKER: str = "database"  # 'database', 'memory', or 'redis'
     REDIS_URL: str = "redis://localhost:6379/0"
-    
+
     # Embeddings
     EMBEDDING_PROVIDER: str = "sentence_transformers"  # 'sentence_transformers', 'local_dense', or 'gemini'
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
     EMBEDDING_DEVICE: str = "cpu"
     EMBEDDING_CACHE_DIR: str = ""
     EMBEDDING_REPRESENTATION_VERSION: int = 2
-    
+
     # LLM & RAG Synthesis (GroqCloud / Gemini / Extractive Fallback)
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "qwen/qwen3.8-27b"
@@ -48,15 +49,15 @@ class Settings(BaseSettings):
     GROQ_TEMPERATURE: float = 0.1
     GROQ_MAX_TOKENS: int = 800
     GROQ_TIMEOUT_SECONDS: float = 15.0
-    
+
     GEMINI_API_KEY: str = ""
     LLM_PROVIDER: str = "groq"
     LLM_MODEL: str = "qwen/qwen3.8-27b"
-    
+
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
-    CORS_ORIGINS: str = ""  # Comma-separated additional CORS origins for production
-    
+    CORS_ORIGINS: str = "https://fast-slate-b1xh91d.tmp.now,https://datanexus.vercel.app,https://datanexus-app.vercel.app"
+
     # Security & API Key Authentication (Optional in development, strict in production)
     API_KEY_ENABLED: bool = False
     API_KEY: str = "datanexus_dev_api_key_2026"

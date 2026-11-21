@@ -26,7 +26,7 @@ services:
       - key: EMBEDDING_MODEL_NAME
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: CORS_ORIGINS
-        value: "https://datanexus.vercel.app,https://datanexus-app.vercel.app,http://localhost:5173,http://localhost"
+        value: "https://fast-slate-b1xh91d.tmp.now,https://datanexus.vercel.app,https://datanexus-app.vercel.app,http://localhost:5173,http://localhost"
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
