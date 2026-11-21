@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Sidebar, WorkspaceId } from './components/Sidebar';
+import { BackendStatusBanner } from './components/BackendStatusBanner';
 import { OverviewPage } from './pages/OverviewPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { DocumentDetailPage } from './pages/DocumentDetailPage';
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans">
       <Navbar />
+      <BackendStatusBanner />
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar activeWorkspace={activeWorkspace} onSelectWorkspace={handleSelectWorkspace} />

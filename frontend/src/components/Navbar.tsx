@@ -34,8 +34,8 @@ export const Navbar: React.FC = () => {
           </div>
           <div>
             <span className="font-bold tracking-tight text-white text-base">DataNexus</span>
-            <span className="text-[10px] uppercase font-mono tracking-widest text-brand-400 bg-brand-950/80 px-1.5 py-0.5 ml-2 rounded border border-brand-800/60">
-              v1.0.0
+            <span className="text-[10px] uppercase font-mono tracking-widest text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 ml-2 rounded border border-emerald-800/60">
+              v2.0.0
             </span>
           </div>
         </div>

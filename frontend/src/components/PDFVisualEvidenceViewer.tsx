@@ -19,9 +19,16 @@ import {
 import { DocumentEvidenceCoordinates, FieldCoordinateItem, LineItemCoordinateItem } from '../types';
 import { api } from '../services/api';
 
-// Set worker source using bundled worker asset
+// Set worker source using bundled worker asset with resilient fallback
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      pdfWorkerUrl ||
+      new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url).toString() ||
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  } catch {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  }
 }
 
 interface PDFVisualEvidenceViewerProps {
@@ -67,8 +74,14 @@ export const PDFVisualEvidenceViewer: React.FC<PDFVisualEvidenceViewerProps> = (
     const loadPdf = async () => {
       try {
         setLoadError(null);
+        const headers: Record<string, string> = {};
+        const apiKey = import.meta.env.VITE_API_KEY;
+        if (apiKey) {
+          headers['X-API-Key'] = apiKey;
+        }
         const loadingTask = pdfjsLib.getDocument({
           url: downloadUrl,
+          httpHeaders: headers,
           withCredentials: false
         });
         const doc = await loadingTask.promise;

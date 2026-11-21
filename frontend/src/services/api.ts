@@ -72,7 +72,8 @@ export const api = {
   },
 
   getDocumentDownloadUrl(id: string): string {
-    return `${API_BASE}/documents/${id}/download`;
+    const base = `${API_BASE}/documents/${id}/download`;
+    return API_KEY ? `${base}?api_key=${encodeURIComponent(API_KEY)}` : base;
   },
 
   async getDocumentEvidenceCoordinates(id: string): Promise<DocumentEvidenceCoordinates> {
