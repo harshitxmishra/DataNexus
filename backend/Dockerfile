@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY backend/requirements.txt /build/requirements.txt
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --prefix=/install -r /build/requirements.txt
+    pip install --no-cache-dir -r /build/requirements.txt
 
 # Pre-cache sentence-transformers and FlashRank models into /models
 ENV HF_HOME=/models/hf \
@@ -33,12 +33,18 @@ RUN python -c "\
 import os;\
 os.environ['HF_HOME'] = '/models/hf';\
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/models/sentence_transformers';\
-from sentence_transformers import SentenceTransformer;\
-m = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2');\
-print('Pre-cached MiniLM model successfully');\
-from flashrank import Ranker;\
-r = Ranker(model_name='ms-marco-MiniLM-L-12-v2', cache_dir='/models/flashrank');\
-print('Pre-cached FlashRank ONNX model successfully');\
+try:\
+    from sentence_transformers import SentenceTransformer;\
+    SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2');\
+    print('Pre-cached MiniLM model successfully');\
+except Exception as e:\
+    print('Notice: MiniLM will download at runtime if needed:', e);\
+try:\
+    from flashrank import Ranker;\
+    Ranker(model_name='ms-marco-MiniLM-L-12-v2', cache_dir='/models/flashrank');\
+    print('Pre-cached FlashRank ONNX model successfully');\
+except Exception as e:\
+    print('Notice: FlashRank will download at runtime if needed:', e);\
 "
 
 # Stage 2: Minimal runtime image
@@ -50,7 +56,7 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/models/hf \
     SENTENCE_TRANSFORMERS_HOME=/models/sentence_transformers \
     FLASHRANK_CACHE_DIR=/models/flashrank \
-    PATH="/install/bin:$PATH" \
+    PATH="/usr/local/bin:$PATH" \
     PYTHONPATH="/app"
 
 WORKDIR /app
@@ -61,7 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages and pre-cached models from builder
-COPY --from=builder /install /usr/local
+COPY --from=builder /usr/local /usr/local
 COPY --from=builder /models /models
 
 # Create non-root application user

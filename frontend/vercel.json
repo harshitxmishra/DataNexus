@@ -2,6 +2,14 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://datanexus-backend-5ah8.onrender.com/api/$1"
+    },
+    {
+      "source": "/health/(.*)",
+      "destination": "https://datanexus-backend-5ah8.onrender.com/health/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1,9 +1,9 @@
-# DataNexus
+![alt text](image.png)# DataNexus
 
 > **Document Intelligence, Semantic Retrieval, and Analytical Lineage Platform**  
 > *"From unstructured documents to trusted, traceable intelligence."*
 
-🚀 **Live Production Demo:** [https://turbo-quartz-7x82srq.tmp.now](https://turbo-quartz-7x82srq.tmp.now)  
+🚀 **Live Production Demo:** [https://data-nexus-theta.vercel.app](https://data-nexus-theta.vercel.app)  
 📦 **Release Version:** `v3.0.0` (Enterprise Financial Ledger, SQL Tuning & SRE Observability)
 
 [![Release](https://img.shields.io/badge/Release-v3.0.0-0070f3.svg)](https://github.com/harshitxmishra/DataNexus/releases/tag/v3.0.0)
