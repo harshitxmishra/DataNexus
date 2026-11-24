@@ -56,6 +56,8 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 
 # Local Runtime Databases & Storage
+.pgdata/
+pgdata/
 *.db
 *.db-journal
 *.db-wal

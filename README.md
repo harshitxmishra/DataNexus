@@ -173,11 +173,11 @@ DataNexus v3.0 introduces an enterprise polyglot microservice architecture decou
 
 Extensive query plan tuning was conducted across **100,000 synthetic multi-currency invoices** and **200,000 audit events** using PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`. Full methodology and raw execution plans are documented in [docs/sql-tuning.md](docs/sql-tuning.md).
 
-| Query Scenario | Before Plan | After Plan | Before (ms) | After (ms) | Buffer Reads | Speedup |
-|---|---|---|---|---|---|---|
-| **Q1: Settlement Rollup** (`status = 'SETTLED'`, 90d window) | Parallel Seq Scan | Bitmap Index Scan (`idx_ledger_status_curr_created`) | **48.24 ms** | **2.68 ms** | 2,168 $\rightarrow$ 68 | **18.0x** (-94.4%) |
-| **Q2: Vendor Paginated Lookup** (`vendor = 'Global Logistics'`, USD, date sort) | Seq Scan + Heapsort | Index Scan (`idx_ledger_vendor_curr_created`) | **31.12 ms** | **0.40 ms** | 1,842 $\rightarrow$ 8 | **77.8x** (-98.7%) |
-| **Q3: Rejection Audit Trail Join** (`status = 'REJECTED'`, join `audit_events`) | Hash Join + 2x Seq Scan | Nested Loop + Bitmap Index Scan on partial & covering FK index | **87.55 ms** | **7.51 ms** | 5,490 $\rightarrow$ 162 | **11.7x** (-91.4%) |
+| Query Scenario | Before Plan | After Plan | Before (ms) | After (ms) | Speedup |
+|---|---|---|---|---|---|
+| **Q1: Settlement Rollup** (`status = 'SETTLED'`, 90d window) | Seq Scan | Index Scan (`idx_ledger_status_curr_created`) | **51.11 ms** | **14.53 ms** | **3.5x** (-71.6%) |
+| **Q2: Vendor Paginated Lookup** (`vendor = 'Global Logistics Ltd'`, USD, date sort) | Seq Scan + Sort | Index Scan (`idx_ledger_vendor_curr_created`) | **27.05 ms** | **0.27 ms** | **100.5x** (-99.0%) |
+| **Q3: Rejection Audit Trail Join** (`status = 'REJECTED'`, join `audit_events`) | Seq Scan | Index Scan on partial & covering FK index | **144.84 ms** | **1.86 ms** | **78.0x** (-98.7%) |
 
 ---
 
