@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     S3_PRESIGNED_URL_EXPIRY: int = 3600  # seconds
 
+    # --- v3.0.0: Financial Ledger Microservice Bridge ---
+    LEDGER_SERVICE_URL: str = ""
+    LEDGER_SERVICE_TIMEOUT_SECONDS: float = 2.0
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",

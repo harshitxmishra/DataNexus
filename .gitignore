@@ -50,6 +50,11 @@ frontend/build/
 .npm
 .eslintcache
 
+# Java / Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
 # Local Runtime Databases & Storage
 *.db
 *.db-journal

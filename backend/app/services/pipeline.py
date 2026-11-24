@@ -8,6 +8,7 @@ from backend.app.models.analytics import DimDate, DimVendor, FactInvoice, FactIn
 from backend.app.models.data_platform import LineageEdge, PipelineRun
 from backend.app.models.document import Document, ExtractedField
 from backend.app.services.quality import quality_service
+from backend.app.services.ledger_client import ledger_client
 
 
 def date_to_key(dt: date) -> int:
@@ -188,6 +189,22 @@ class DataPipelineService:
 
                 # Also trigger quality evaluation
                 quality_service.evaluate_document_quality(doc.id, db, batch_id=batch_id)
+
+                # Forward to Java 21 Financial Ledger service if configured (graceful non-blocking hook)
+                try:
+                    ledger_client.forward_validated_invoice_sync(
+                        invoice_number=fact.invoice_number,
+                        vendor_name=vendor_dim.vendor_name,
+                        currency=fact.currency,
+                        amount=fact.total_amount,
+                        status="VALIDATED",
+                        validation_score=fact.extraction_confidence * 100.0 if fact.extraction_confidence else 100.0,
+                        source_doc_hash=getattr(doc, "file_hash", ""),
+                        actor="pipeline-etl",
+                        metadata={"batchId": batch_id, "documentId": doc.id}
+                    )
+                except Exception as ledger_err:
+                    print(f"Non-blocking ledger forwarding skipped: {ledger_err}")
 
             except Exception as e:
                 rows_rejected += 1
