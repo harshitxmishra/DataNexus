@@ -69,7 +69,30 @@ jobs:
           pytest backend/tests -v --durations=10
 
   # ------------------------------------------------------------
-  # 2. Frontend TypeScript Build & Bundle Validation
+  # 2. Java 21 Financial Ledger Service CI (Maven & JUnit 5)
+  # ------------------------------------------------------------
+  ledger-service-ci:
+    name: Java 21 Ledger Service CI (JUnit 5 & Integration Tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "maven"
+
+      - name: Build and Run JUnit 5 Test Suite
+        working-directory: ./services/ledger-service
+        run: mvn clean test -B
+
+  # ------------------------------------------------------------
+  # 3. Frontend TypeScript Build & Bundle Validation
   # ------------------------------------------------------------
   frontend-build:
     name: Frontend CI (Typecheck & Vite Build)
@@ -112,11 +135,11 @@ jobs:
           docker compose -f docker-compose.prod.yml config
 
   # ------------------------------------------------------------
-  # 4. Continuous Delivery (ECR / ECS Deployment) — Gated
+  # 5. Continuous Delivery (ECR / ECS Deployment) — Gated
   # ------------------------------------------------------------
   cd-deploy:
     name: Production CD (ECR Push & ECS Rollout)
-    needs: [backend-test, frontend-build, docker-validate]
+    needs: [backend-test, ledger-service-ci, frontend-build, docker-validate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20

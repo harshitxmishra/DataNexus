@@ -4,20 +4,22 @@
 > *"From unstructured documents to trusted, traceable intelligence."*
 
 🚀 **Live Production Demo:** [https://turbo-quartz-7x82srq.tmp.now](https://turbo-quartz-7x82srq.tmp.now)  
-📦 **Release Version:** `v2.0.0` (Cloud-Deployable & Benchmark-Ready Production Release)
+📦 **Release Version:** `v3.0.0` (Enterprise Financial Ledger, SQL Tuning & SRE Observability)
 
-[![Release](https://img.shields.io/badge/Release-v2.0.0-0070f3.svg)](https://github.com/harshitxmishra/DataNexus/releases/tag/v2.0.0)
+[![Release](https://img.shields.io/badge/Release-v3.0.0-0070f3.svg)](https://github.com/harshitxmishra/DataNexus/releases/tag/v3.0.0)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-100%25%20Passing-emerald.svg)](https://github.com/harshitxmishra/DataNexus/actions)
+[![Java 21](https://img.shields.io/badge/Java-21%20LTS%20%7C%20Spring%20Boot%203.3-orange.svg)](https://adoptium.net/)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6.svg)](https://www.typescriptlang.org/)
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-f5a623.svg)](https://opentelemetry.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20Tuned-336791.svg)](https://www.postgresql.org/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Collector%20Contrib-f5a623.svg)](https://opentelemetry.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-v2.51-e6522c.svg)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-SRE%20Dashboard-f46800.svg)](https://grafana.com/)
 [![FlashRank](https://img.shields.io/badge/FlashRank-ONNX%20Reranker-purple.svg)](https://github.com/PrithivirajDamodaran/FlashRank)
 [![Docker](https://img.shields.io/badge/Docker-Multi--Stage-2496ed.svg)](https://www.docker.com/)
-[![Terraform](https://img.shields.io/badge/Terraform-IaC-7b42bc.svg)](https://www.terraform.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-105%20Passed-emerald.svg)](backend/tests/)
 
 ---
 
@@ -131,6 +133,71 @@ graph TD
         Views --> CSVExports[CSV Data Exports]
     end
 ```
+
+---
+
+## 4.1. Polyglot Enterprise Architecture (v3.0.0)
+
+DataNexus v3.0 introduces an enterprise polyglot microservice architecture decoupling AI-powered unstructured extraction from immutable financial ledgering and SRE observability:
+
+```
+[ Frontend: React 18 / TypeScript / Vite / PDF.js Evidence Viewer ]
+                         │
+                         ▼ (HTTP REST / SSE)
+[ FastAPI Core Backend (Python 3.12/3.13) ]
+  ├── Document Ingestion & Deterministic SHA-256 Storage
+  ├── Native Stream PDF Coordinate Extraction (pypdf)
+  ├── Hybrid Lexical (BM25) + Dense Vector (all-MiniLM-L6-v2) RRF Retrieval
+  ├── FlashRank ONNX Cross-Encoder Reranking (ms-marco-MiniLM-L-12-v2)
+  ├── Evidence-Backed RAG QA Engine (GroqCloud / qwen3.8-27b)
+  └── Non-Blocking Resilient Ledger Client Bridge
+                         │
+                         ▼ (Async HTTP POST /api/v1/ledger/entries)
+[ Enterprise Financial Ledger Service (Java 21 LTS + Spring Boot 3.3) ]
+  ├── Immutable Financial Ledger (`ledger_entries`)
+  ├── Transactional Audit Trail with JSONB Payload (`audit_events`)
+  ├── Multi-Currency Settlement Rollup Aggregation
+  ├── Flyway 10 Versioned Database Migrations
+  └── Micrometer Prometheus Metrics Exporter (/actuator/prometheus)
+                         │
+                         ▼ (Tuned Relational Persistence)
+[ PostgreSQL 16 Enterprise Database Engine ]
+  ├── Composite B-Tree Indexes (Status, Currency, Date)
+  ├── Partial Indexing (Filtered Exception Scans on REJECTED Invoices)
+  └── Covering Foreign-Key Indexing on Audit Events
+```
+
+---
+
+## 4.2. PostgreSQL SQL Tuning & Performance Benchmark
+
+Extensive query plan tuning was conducted across **100,000 synthetic multi-currency invoices** and **200,000 audit events** using PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`. Full methodology and raw execution plans are documented in [docs/sql-tuning.md](docs/sql-tuning.md).
+
+| Query Scenario | Before Plan | After Plan | Before (ms) | After (ms) | Buffer Reads | Speedup |
+|---|---|---|---|---|---|---|
+| **Q1: Settlement Rollup** (`status = 'SETTLED'`, 90d window) | Parallel Seq Scan | Bitmap Index Scan (`idx_ledger_status_curr_created`) | **48.24 ms** | **2.68 ms** | 2,168 $\rightarrow$ 68 | **18.0x** (-94.4%) |
+| **Q2: Vendor Paginated Lookup** (`vendor = 'Global Logistics'`, USD, date sort) | Seq Scan + Heapsort | Index Scan (`idx_ledger_vendor_curr_created`) | **31.12 ms** | **0.40 ms** | 1,842 $\rightarrow$ 8 | **77.8x** (-98.7%) |
+| **Q3: Rejection Audit Trail Join** (`status = 'REJECTED'`, join `audit_events`) | Hash Join + 2x Seq Scan | Nested Loop + Bitmap Index Scan on partial & covering FK index | **87.55 ms** | **7.51 ms** | 5,490 $\rightarrow$ 162 | **11.7x** (-91.4%) |
+
+---
+
+## 4.3. SRE Observability Stack (OTel, Prometheus & Grafana)
+
+The DataNexus observability stack orchestrates distributed telemetry across all services in `docker-compose.monitoring.yml`:
+- **OpenTelemetry Collector Contrib:** Ingests distributed traces and metrics over OTLP gRPC (port `4317`) and HTTP (port `4318`), batching and exporting to Prometheus.
+- **Prometheus (v2.51):** Scrapes Spring Boot 3 Micrometer Actuator (`:8081/actuator/prometheus`), OTel Collector (`:8889`), and PostgreSQL Exporter (`:9187`) at sub-5s intervals.
+- **Grafana (v11+):** Auto-provisioned data sources and dashboards (`monitoring/grafana/dashboards/datanexus-sre-overview.json`) providing real-time visibility into:
+  1. **FastAPI & Java 21 p95 / p99 Request Latency**
+  2. **HTTP 4xx / 5xx Error Rates & SLO Breaches**
+  3. **Invoice Ingestion & Validation Throughput (req/sec)**
+  4. **JVM 21 Generational ZGC Heap Utilization & GC Pause Durations**
+  5. **PostgreSQL Active Connections, Transaction Throughput & Rollbacks**
+
+### Launching the Monitoring Stack Locally
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+```
+Access Grafana at **[http://localhost:3000](http://localhost:3000)** (Anonymous admin access pre-configured).
 
 ---
 
