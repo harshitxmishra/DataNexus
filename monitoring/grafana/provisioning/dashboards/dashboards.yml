@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "DataNexus SRE Dashboards"
+    orgId: 1
+    folder: "DataNexus"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

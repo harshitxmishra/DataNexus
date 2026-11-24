@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "ledger-service"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 3s
+    static_configs:
+      - targets: ["ledger-service:8081"]
+        labels:
+          application: "ledger-service"
+          environment: "production"
+
+  - job_name: "fastapi-otel-collector"
+    scrape_interval: 3s
+    static_configs:
+      - targets: ["otel-collector:8889"]
+        labels:
+          application: "datanexus-backend"
+          environment: "production"
+
+  - job_name: "postgres-exporter"
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          application: "postgres"
+          environment: "production"
