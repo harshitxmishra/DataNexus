@@ -27,18 +27,6 @@ async def lifespan(app: FastAPI):
     from backend.app.telemetry import setup_telemetry
     setup_telemetry(app)
 
-    # Auto-seed demonstration invoices if database is brand new on cloud deployment
-    try:
-        from backend.app.database import SessionLocal
-        from backend.app.models.document import Document
-        with SessionLocal() as db:
-            if db.query(Document).count() == 0:
-                from backend.app.seed import seed_database
-                seed_database()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Auto-seed notification: {e}")
-
     yield
     # Shutdown logic if any
 

@@ -22,7 +22,7 @@ services:
       - key: RERANKER_MODEL
         value: ms-marco-MiniLM-L-12-v2
       - key: EMBEDDING_PROVIDER
-        value: sentence_transformers
+        value: local_dense
       - key: EMBEDDING_MODEL_NAME
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: CORS_ORIGINS
